@@ -237,3 +237,41 @@ memory chips
 SPI provides high speed, but it requires more wires.
 
 ---
+
+## 3.1.3 I2C (Inter-Integrated Circuit)
+
+In embedded systems, several sensors may need to connect to the same microcontroller. Using many wires for each sensor would become messy.
+
+I2C solves this problem by allowing multiple devices to communicate using only two wires:
+
+SDA (Serial Data)
+SCL (Serial Clock)
+
+Each device connected to I2C has its own address. The microcontroller communicates by selecting the required device address.
+
+Example:
+
+A system may have:
+
+temperature sensor
+pressure sensor
+display module
+
+All three devices can share the same two communication wires.
+
+I2C is slower than SPI but uses fewer wires and supports many connected devices.
+
+All devices can share the same communication lines. I2C reduces wiring complexity.
+
+---
+
+## Communication Comparison
+
+| Protocol | Speed | Wires | Common Usage |
+|-----------|--------|--------|---------------|
+| UART | Medium | 2 | PC communication |
+| SPI | Fast | 3+ | Displays, SD cards |
+| I2C | Medium | 2 | Sensors and modules |
+
+---
+
