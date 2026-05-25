@@ -275,3 +275,226 @@ All devices can share the same communication lines. I2C reduces wiring complexit
 
 ---
 
+# 3.1.4 Timers
+
+A timer is a built-in hardware module inside the microcontroller that keeps track of time automatically.
+
+Without timers, the CPU would have to continuously count numbers just to create delays. This wastes processing power.
+
+Example:
+
+Suppose an LED should blink every 1 second.
+
+Without a timer:
+
+The CPU repeatedly counts numbers and waits.
+
+With a timer:
+
+The timer counts automatically and notifies the CPU after 1 second.
+
+Timers are used for:
+
+-       delays
+-       measuring time intervals
+-       periodic tasks
+-       event scheduling
+
+Timers help reduce CPU workload.
+
+---
+
+# 3.1.5 PWM (Pulse Width Modulation)
+
+PWM stands for Pulse Width Modulation. It is a technique used to control power delivered to devices.
+
+Microcontrollers can only output digital signals:
+
+ON (1)
+OFF (0)
+
+But many devices need gradual control rather than simple ON/OFF operation.
+
+PWM solves this by switching signals ON and OFF very quickly.
+
+If the signal stays ON longer:
+
+→ more power delivered
+
+If the signal stays ON for shorter duration:
+
+→ less power delivered
+
+Examples:
+
+controlling motor speed
+LED brightness
+fan speed control
+
+Example:
+
+50% PWM:
+
+Signal ON half the time and OFF half the time.
+
+Result:
+
+motor runs around half speed
+LED appears medium brightness
+
+Although output is digital, the device behaves as if it receives analog control.
+
+
+# 3.1.6 ADC (Analog to Digital Converter)
+
+Microcontrollers understand only digital values:
+
+0 and 1
+
+However real-world values are analog.
+
+Examples:
+
+- temperature
+- light intensity
+- pressure
+
+Sensors often generate voltages.
+
+ADC converts analog signals into digital values that the microcontroller can understand.
+
+Example:
+
+Temperature increases  
+↓  
+Sensor voltage changes  
+↓  
+ADC converts voltage  
+↓  
+MCU receives value like 512
+
+---
+
+## DAC (Digital to Analog Converter)
+
+DAC performs the opposite operation.
+
+It converts digital values into analog signals.
+
+Used in:
+
+- audio systems
+- signal generation
+- speaker control
+
+ADC:
+
+Analog → Digital
+
+DAC:
+
+Digital → Analog
+
+---
+
+# 4. External World (Sensors and Actuators)
+
+Embedded systems interact with the outside world using sensors and actuators.
+
+---
+
+## Sensors
+
+Sensors are input devices.
+
+They measure physical conditions and convert them into electrical signals.
+
+Examples:
+
+- temperature sensor
+- ultrasonic sensor
+- pressure sensor
+- light sensor
+- button
+
+Example:
+
+Temperature increases  
+↓  
+Voltage changes  
+↓  
+MCU reads signal
+
+---
+
+## Actuators
+
+Actuators are output devices.
+
+They convert electrical signals into physical action.
+
+Examples:
+
+- motors
+- LEDs
+- relays
+- buzzers
+- servo motors
+
+Example:
+
+Button pressed  
+↓  
+MCU processes input  
+↓  
+Motor turns ON
+
+---
+
+# Software / Firmware
+
+Software controls how hardware behaves.
+
+Firmware is software written specifically for embedded devices.
+
+Examples:
+
+- device drivers
+- application code
+- RTOS software
+
+Complex systems may use RTOS (Real Time Operating System).
+
+RTOS helps:
+
+- task scheduling
+- resource management
+- real-time performance
+
+Examples:
+
+- FreeRTOS
+- Zephyr
+
+---
+
+# Final System Flow
+
+Sensors → Microcontroller → Processing → Actuators  
+                      ↑  
+        Memory + Peripherals + Firmware
+
+---
+
+# Key Understanding
+
+An embedded system is not only a microcontroller.
+
+It is a complete system containing:
+
+- Processing unit
+- Memory
+- Peripherals
+- Software
+- Sensors
+- Actuators
