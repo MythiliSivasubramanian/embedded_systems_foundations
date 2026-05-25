@@ -157,3 +157,83 @@ Examples:
 - PWM
 
 ---
+
+# 3.1 Communication Interfaces
+
+Embedded devices often need to exchange information with other devices.
+
+Examples:
+
+- microcontroller from/to computer
+- microcontroller from/to  display
+- microcontroller from/to  sensor
+
+Communication interfaces make this possible.
+
+---
+
+## 3.1.1 UART (Universal Asynchronous Receiver Transmitter)
+
+Microcontrollers often need to exchange information with other devices. For example, a microcontroller may need to send sensor values to a computer or receive commands from another device. UART is one of the simplest communication methods used for this purpose.
+
+UART is a serial communication protocol, meaning data is sent one bit at a time instead of sending many bits together. It mainly uses two lines:
+
+TX (Transmit) → sends data
+RX (Receive) → receives data
+
+Suppose a microcontroller wants to send the text "Hello" to a computer. The data travels through the TX line of the microcontroller and reaches the RX line of the computer.
+
+UART is commonly used for:
+
+communication between PC and microcontroller
+debugging programs through serial monitor
+communication between small embedded devices
+
+UART is simple and reliable, but it becomes slower compared to protocols like SPI.
+
+Example:
+
+Suppose a microcontroller sends:
+
+"Temperature = 30°C"
+
+The message travels from TX of MCU to RX of the computer.
+
+UART is commonly used for:
+
+- PC and microcontroller communication
+- debugging programs
+- serial monitoring
+
+UART is simple and reliable but slower than some other protocols.
+
+---
+
+## 3.1.2 SPI (Serial Peripheral Interface)
+
+Some devices need faster communication. For example, displays and SD cards exchange larger amounts of data. UART may not be fast enough in such situations.
+
+SPI is a communication protocol designed for high-speed communication between devices.
+
+SPI uses multiple lines:
+
+MOSI (Master Out Slave In) : sends data from controller to device
+MISO (Master In Slave Out) : sends data back
+SCLK (Serial Clock) :  synchronizes communication
+
+The clock signal is important because both devices must know exactly when data is being sent and read.
+
+Example:
+
+When a microcontroller writes data to an SD card, SPI allows data transfer much faster than UART.
+
+SPI is widely used with:
+
+displays
+SD cards
+fast sensors
+memory chips
+
+SPI provides high speed, but it requires more wires.
+
+---
