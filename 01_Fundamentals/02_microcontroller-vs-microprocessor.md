@@ -1,73 +1,85 @@
 # Microcontroller vs Microprocessor
 
-## Microprocessor (MPU)
+## What is a Microprocessor (MPU)?
 
-A microprocessor is mainly the CPU of a system. It does not include RAM, ROM, or peripherals on the same chip. These components are connected externally.
+A microprocessor is mainly the CPU of a system. It does not include RAM, ROM, or most peripherals on the same chip. These components are connected externally.
 
-Microprocessors are used in systems that require high computing power, multitasking, and full operating systems like Windows or Linux.
+Microprocessors are used in systems that need high computing power, multitasking, and full operating systems such as Windows or Linux.
 
 Examples:
 - Laptops
 - Desktops
 - Servers
+- High-end smartphones
 
 ---
 
-## Microcontroller (MCU)
+## What is a Microcontroller (MCU)?
 
-A microcontroller is a complete computer system on a single chip. It includes:
+A microcontroller is a complete computer system on a single chip. It usually includes:
 
 - CPU
 - RAM
 - Flash / ROM
-- GPIO
+- GPIO pins
 - Timers
-- Communication peripherals like UART, SPI, I2C
-UART -  Universal asynchronous receiver- transmitter
-SPI  -  Serial Peripheral Interface
-I2C  -  Inter-Integrated Circuit
+- Communication peripherals such as UART, SPI, I2C
 
-Microcontrollers are designed for embedded control applications where real-time response, low power consumption, and reliability are important.
-
-Examples:
+Common MCUs:
 - STM32
 - AVR (Arduino boards like ATmega328P)
 - PIC microcontrollers
 - Renesas MCUs
 
+Microcontrollers are designed for embedded applications requiring real-time response, low power, and reliability.
+
 ---
 
-## Where they are used
+## Key differences
 
-Microcontrollers are used in systems that require:
+| Feature | Microprocessor (MPU) | Microcontroller (MCU) |
+|---|---|---|
+| Integration | CPU only | CPU + memory + peripherals on one chip |
+| Memory | External RAM/ROM | On-chip RAM and Flash |
+| Peripherals | External devices | Built-in UART, SPI, I2C, timers, ADC |
+| Power | Higher | Lower |
+| Cost | Higher | Lower |
+| Typical use | PCs, servers, mobile devices | Appliances, controllers, sensors |
+| Operating system | Full OS possible | Often runs bare metal or real-time OS |
+
+---
+
+## Typical uses
+
+### Microcontrollers are used when a system needs:
 - real-time control
-- low power usage
-- simple and reliable operation
+- low power consumption
+- compact and cost-effective design
+- simple, dedicated operation
 
 Examples:
-- washing machines (motor + timing control)
+- washing machines
 - car braking systems
-- sensors and automation systems
+- sensor interfaces
+- home automation devices
 
----
-
-Microprocessors are used in systems that require:
+### Microprocessors are used when a system needs:
 - high processing power
 - multitasking
-- full operating systems
+- a full desktop or mobile operating system
 
 Examples:
 - laptops
 - servers
 - desktops
+- advanced embedded systems with Linux
 
 ---
 
 ## Why washing machines use microcontrollers
 
-A washing machine performs a dedicated control task such as managing motor speed, water level, and timing.
+A washing machine performs a dedicated control task such as managing motor speed, water level, and timing. A microcontroller is enough because:
 
-A microcontroller is enough because:
 - it already includes CPU, memory, and peripherals
 - it consumes low power
 - it is cost-effective
@@ -79,9 +91,9 @@ A microcontroller is enough because:
 
 Windows requires:
 - large memory (RAM and storage)
-- memory management unit (MMU)
+- a memory management unit (MMU)
 - multitasking and process isolation support
 
-Most microcontrollers do not have an MMU and have limited memory. Therefore, they cannot support a full operating system like Windows.
+Most microcontrollers do not have an MMU and have limited memory. Therefore, they cannot support a full OS like Windows.
 
-Microprocessors, on the other hand, are designed to support such operating systems.
+Microprocessors are designed to support such operating systems.
