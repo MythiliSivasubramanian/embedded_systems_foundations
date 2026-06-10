@@ -51,3 +51,52 @@ Bitwise operators let firmware read and modify these bits safely and efficiently
 ### 5. Left shift operator (`<<`)
 ### 6. Right shift operator (`>>`)
 
+
+
+
+### 1. AND operator (`&`)
+
+The AND operator compares two bits.
+
+Result is 1 only if both bits are 1.
+
+```
+0 & 0 = 0
+0 & 1 = 0
+1 & 0 = 0
+1 & 1 = 1
+```
+
+Example in decimal:
+
+```c
+5 & 3 = 1
+// binary: 0101 & 0011 = 0001
+```
+
+#### Use in embedded: extracting a bit or checking a bit
+
+```c
+#define GPIO_PIN_5 (1U << 5)
+
+uint32_t port_value = 0x00000020; // bit 5 is set
+uint32_t is_bit_5_set = port_value & GPIO_PIN_5;
+
+if (is_bit_5_set) {
+    // bit 5 is 1
+}
+```
+
+The result is non-zero only if bit 5 is set.
+
+#### Use: clearing bits
+
+```c
+uint32_t control_reg = 0xFF;
+uint32_t mask = 0xF0;
+uint32_t result = control_reg & mask;
+// keeps upper 4 bits, clears lower 4 bits
+```
+
+---
+
