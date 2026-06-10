@@ -25,3 +25,29 @@ Bitwise operators let you read, set, clear, or flip individual bits.
 
 ---
 
+## Why bitwise operators matter in embedded systems
+
+Hardware registers are the interface between software and hardware.
+
+Each register is a fixed-size number (usually 8, 16, or 32 bits).
+
+Each bit often controls something specific:
+
+- bit 0 might enable a peripheral
+- bit 1 might set an output high or low
+- bit 2 might indicate a status flag
+- bits 3-5 might store a mode setting
+
+Bitwise operators let firmware read and modify these bits safely and efficiently.
+
+---
+
+## The six main bitwise operators
+    
+###  1. AND operator (`&`)
+### 2. OR operator (`|`)
+### 3. XOR operator (`^`)
+### 4. NOT operator (`~`)
+### 5. Left shift operator (`<<`)
+### 6. Right shift operator (`>>`)
+
