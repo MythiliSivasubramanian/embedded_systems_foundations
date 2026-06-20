@@ -7,6 +7,7 @@ A microprocessor is mainly the CPU of a system. It does not include RAM, ROM, or
 Microprocessors are used in systems that need high computing power, multitasking, and full operating systems such as Windows or Linux.
 
 Examples:
+
 - Laptops
 - Desktops
 - Servers
@@ -26,6 +27,7 @@ A microcontroller is a complete computer system on a single chip. It usually inc
 - Communication peripherals such as UART, SPI, I2C
 
 Common MCUs:
+
 - STM32
 - AVR (Arduino boards like ATmega328P)
 - PIC microcontrollers
@@ -58,6 +60,7 @@ Microcontrollers are designed for embedded applications requiring real-time resp
 - simple, dedicated operation
 
 Examples:
+
 - washing machines
 - car braking systems
 - sensor interfaces
@@ -69,6 +72,7 @@ Examples:
 - a full desktop or mobile operating system
 
 Examples:
+
 - laptops
 - servers
 - desktops
