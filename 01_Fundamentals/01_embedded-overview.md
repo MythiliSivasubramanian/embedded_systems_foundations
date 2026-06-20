@@ -6,6 +6,7 @@ Embedded systems are different.
 
 An embedded system is a computer system built for a specific purpose inside a larger device. It is designed to perform one dedicated function, usually with constrained processing power, memory, and input/output.
 
+
 Examples:
 
 - Washing machine → controls wash cycles
@@ -17,7 +18,7 @@ Examples:
 
 ---
 
-## Typical embedded system structure
+## Typical basic embedded system structure
 
 A simple embedded system usually includes:
 
