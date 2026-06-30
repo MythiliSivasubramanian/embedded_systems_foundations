@@ -354,3 +354,279 @@ They both increment the variable. The difference is when the increment happens.
 Similarly for decrement:
 - --i decrements first and then uses the value.
 - i-- uses the original value first and then decrements it.
+
+### Assignment Operator
+The assignment operator stores a value into a variable. The most common assignment operator is = 
+
+###### Example:
+```c
+int a = 10; // Value 10 is assigned to the variable.
+```
+##### CPU View: 
+
+Conceptually, the compiler may generate something like
+```asm
+MOV R1, #10
+STR R1, [a]
+```
+Register R1 = 10
+↓
+Store to RAM
+↓
+a = 10
+
+#### Compound Assignment Operators
+
+Instead of writing: a = a + 5; 
+C allows: a += 5;
+Both mean exactly the same thing.
+
+##### CPU View Conceptually:
+```asm
+LDR R1, [a]
+ADD R1, R1, #5
+STR R1, [a]
+```
+
+```text
+RAM
+↓
+Register
+↓
+ALU
+↓
+Register
+↓
+```
+RAM
+
+Exactly the same flow as + operator.
+
+#### Other Assignment Operators
+
+| Operator | Equivalent |
+|----------|------------|
+| +=       | a = a + b  |
+| -=       | a = a - b  |
+| *=       | a = a * b  |
+| /=       | a = a / b  |
+| %=       | a = a % b  |
+
+
+### Comparison (Relational) Operators:
+
+These operators are used to compare two values. Unlike arithmetic operators, they do not produce a mathematical result.
+Instead, they produce:
+1 → True
+0 → False
+
+This result is then used by statements like if, while, and for.
+
+#### Comparison Operators
+
+| Operator | Meaning |
+|----------|---------|
+| ==       | Equal to |
+| !=       | Not equal to |
+| >        | Greater than |
+| <        | Less than |
+| >=       | Greater than or equal to |
+| <=       | Less than or equal to |
+
+
+###### Example 
+int a = 10;
+int b = 20;
+
+int result = (a < b); // int result = 1
+
+##### CPU view : conceptual 
+
+LDR R1, [a]
+LDR R2, [b]
+CMP R1, R2
+Notice something important:
+There is no less_than instruction. It uses CMP.
+
+###### What does CMP do?
+Conceptually:
+
+CMP R1, R2 means compare R1 with R2
+Internally, the processor performs a subtraction only to determine the relationship between the two values. It does not store the subtraction result in a register. Instead, it updates special status flags inside the CPU.
+Lets study after those flags (Zero, Negative, Carry, Overflow) when we cover branching and decision making. For now, just know:
+
+CMP compares values and updates CPU status flags; it does not write a result back to a register.
+
+###### Example 2
+int a = 15;
+int b = 15;
+
+int result = (a == b);  // int result = 1
+
+CPU:
+LDR R1, [a]
+LDR R2, [b]
+CMP R1, R2
+
+###### Example 3
+int a = 25;
+int b = 30;
+int result = (a > b); // result = 0
+
+##### Note:
+if (a > b)
+{
+...
+}
+Notice there is no == 1.
+That's because in C:
+0 means false. Any non-zero value means true. So these are equivalent:
+if (a > b)
+
+and
+
+if ((a > b) != 0)
+
+
+#### Logical Operators: 
+Used to combine multiple conditions or modify comparison results
+They work with true (non-zero) and false (0) values.
+
+
+&& (Logical AND) : true only if BOTH conditions are true.
+|| (Logical OR) : 
+! (Logical NOT)
+
+##### Logical AND (&&):
+
+The result is true only if BOTH conditions are true.
+
+###### Example:
+
+int temperature = 85;
+int fan_enabled = 1;
+
+if ((temperature > 80) && (fan_enabled == 1))  // 1 (both conditions true)
+{
+    // Turn on cooling
+}
+
+###### Truth table:
+
+| Condition 1 | Condition 2 | Result |
+|-------------|-------------|--------|
+| 0           | 0           | 0      |
+| 0           | 1           | 0      |
+| 1           | 0           | 0      |
+| 1           | 1           | 1      |
+
+
+In logical And &&, when the 1st condition is not true( false), then the second condition is not evaluated (short-circuit evaluation).  
+
+##### Example
+
+Suppose you only want to start a motor if:
+Start button is pressed
+Emergency stop is NOT active
+
+if ((start_button == 1) && (emergency_stop == 0))
+{
+   // Start motor
+}
+
+Both conditions must be satisfied.
+
+##### CPU View (Conceptual)
+
+Suppose:
+if ((a > b) && (c == d))
+
+Conceptually, the CPU performs:
+LDR R1, [a]
+LDR R2, [b]
+CMP R1, R2
+       ; First comparison
+
+LDR R3, [c]
+LDT R4, [d]
+CMP R3, R4
+       ; Second comparison
+       
+Then it combines the results according to the rules of &&.
+
+
+###### Logical OR (||):
+The result is true if at least one condition is true.
+
+###### Example
+int temperature = 90;
+int emergency = 0;
+
+if ((temperature > 80) || (emergency == 1))
+{
+   // Take action
+}
+
+Let's evaluate it.
+
+Here, the first condition (90 > 80)  is true, the second condition (0 == 1) is false. The result is true since one of the conditions(atleast one condition) is true. 
+
+###### Truth Table:
+
+| Condition 1 | Condition 2 | Result |
+|-------------|-------------|--------|
+| 0           | 0           | 0      |
+| 0           | 1           | 1      |
+| 1           | 0           | 1      |
+| 1           | 1           | 1      |
+
+
+###### Example:
+Suppose you want to stop a motor if:
+Emergency button is pressed OR
+Motor temperature is too high
+
+if ((emergency_button == 1) || (motor_temp > 90))
+{
+   // Stop motor
+}
+The block executes, when one of the conditions is true.
+
+
+##### Logical NOT (!):
+It inverts a condition.
+
+true (1) → becomes false (0)
+false (0) → becomes true (1)
+
+###### Example: 
+int a = 5;
+int result = !(a > 3);  // result = !(5 > 3)   which is !(1). ie 0
+
+
+| Input | Output |
+|-------|--------|
+| 0     | 1      |
+| non-zero | 0 |
+
+
+###### Example:
+
+if (!sensor_ok)      // means  if (sensor_ok == 0)
+if (!ptr)   // means if (ptr == NULL)
+if (!UART_READY)   // Meaning UART is NOT ready
+
+###### Example 1:
+
+int a = 0;
+int result = !a;  // result = 1
+
+###### Example 2:
+
+int a = 5;
+int result = !a;    // result = 0
+
+###### Example 3:
+int a = 3;
+int b = 4;
+int result = !(a < b);  // result = 0
