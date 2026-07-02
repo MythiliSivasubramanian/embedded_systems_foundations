@@ -953,15 +953,16 @@ GPIOA->ODR &= ~(1U << 5);
 Read it in English:
 Read the Output Data Register, clear bit `5`, and write the updated value back.
 
-### The three most common bit operations
-
-These are worth memorizing because you will use them constantly:
+### The four most common bit operations
 
 | Operation | Code | Meaning |
 |---|---|---|
 | Check bit | `REG & (1U << n)` | Is bit `n` set? |
 | Set bit | `REG |= (1U << n)` | Make bit `n = 1` |
 | Clear bit | `REG &= ~(1U << n)` | Make bit `n = 0` |
+| Toggle bit | `REG ^= (1U << n)` | Flip bit `n` |
+
+Note: These patterns should be used when you want to modify only the specified bit without affecting other bits in the register.
 
 These three patterns appear throughout STM32 reference manuals, HAL code, LL drivers, and bare-metal firmware.
 
