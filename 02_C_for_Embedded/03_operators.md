@@ -621,12 +621,558 @@ if (!UART_READY)   // Meaning UART is NOT ready
 int a = 0;
 int result = !a;  // result = 1
 
-###### Example 2:
+#### Example 2
 
+```c
 int a = 5;
 int result = !a;    // result = 0
+```
 
-###### Example 3:
+#### Example 3
+
+```c
 int a = 3;
 int b = 4;
 int result = !(a < b);  // result = 0
+```
+
+## Bitwise Operators
+
+Unlike logical operators (`&&`, `||`), bitwise operators work on individual bits of a number.
+
+| Operator | Name | Purpose |
+|---|---|---|
+| `&` | Bitwise AND | Returns `1` only if both bits are `1` |
+| `|` | Bitwise OR | Returns `1` if any bit is `1` |
+| `^` | Bitwise XOR | Returns `1` if bits are different |
+| `~` | Bitwise NOT | Inverts all bits |
+| `<<` | Left Shift | Shifts bits left |
+| `>>` | Right Shift | Shifts bits right |
+
+### Bitwise AND (`&`)
+
+Used to check a bit.
+
+- `1 & 1 = 1`
+- `1 & 0 = 0`
+- `0 & 1 = 0`
+- `0 & 0 = 0`
+
+#### Example
+
+```c
+int a = 6;
+int b = 3;
+int result = a & b;  // result = 2
+```
+
+Step 1: Convert to binary (8-bit)
+- `6 = 0000 0110`
+- `3 = 0000 0011`
+
+Step 2: Apply AND bit by bit
+
+```text
+00000110
+&00000011
+---------
+00000010
+```
+
+Step 3: Convert back
+- `00000010 = 2`
+- `result = 2`
+
+Why are bitwise operators important in embedded systems?
+Bitwise operators are used to check bits inside hardware registers.
+
+#### Example: Checking a pin state
+
+```c
+// Bitwise AND is used to CHECK a bit
+if (GPIOA_IDR & (1 << 5))
+```
+
+Meaning:
+- Check if bit `5` is `HIGH`
+
+Assume register:
+- `GPIOA_IDR = 00010000` (Input Data Register of Port A)
+
+Mask:
+- `(1 << 5) = 00100000` (Mask only the 5th bit)
+
+Now:
+
+```text
+00010000
+&00100000
+---------
+00000000
+```
+
+Result = `0` → pin is `LOW`
+
+If bit was set:
+
+```text
+00100000
+&00100000
+---------
+00100000
+```
+
+Result ≠ `0` → pin is `HIGH`
+
+#### CPU view (simple)
+
+```asm
+AND R3, R1, R2
+```
+
+The ALU compares each bit, produces the result bit-by-bit, and stores it in a register.
+
+### Bitwise OR (`|`)
+
+Used to set a bit.
+
+- `1 | 1 = 1`
+- `1 | 0 = 1`
+- `0 | 1 = 1`
+- `0 | 0 = 0`
+
+If any bit is `1`, the result becomes `1`.
+
+#### Example: Turning ON an LED (STM32)
+
+```c
+GPIOA_ODR |= (1 << 5);
+```
+
+`ODR` is the Output Data Register. It controls output pins.
+
+| Bit | Pin |
+|---|---|
+| 0 | PA0 |
+| 1 | PA1 |
+| 5 | PA5 (LED maybe) |
+
+Assume current state:
+- `GPIOA_ODR = 00000000`
+- All pins are OFF.
+
+Create mask:
+- `(1 << 5) = 00100000`
+- Meaning: only pin `5` is targeted.
+
+Apply OR:
+
+```text
+00000000
+|00100000
+---------
+00100000
+```
+
+Result:
+- `GPIOA_ODR = 00100000`
+- Pin `5` is now `HIGH` (LED ON)
+
+Important concept:
+We did not overwrite everything. We only changed one bit.
+
+Why `|=` is used:
+
+```c
+GPIOA_ODR |= (1 << 5);
+```
+
+means:
+
+```c
+GPIOA_ODR = GPIOA_ODR | (1 << 5);
+```
+
+So: “Keep old values + set bit 5”.
+
+#### Comparison with simple assignment
+
+```c
+GPIOA_ODR = (1 << 5);
+```
+
+This is wrong and dangerous in embedded systems because it wipes all other pins and only keeps pin `5`.
+
+Hence:
+
+```c
+GPIOA_ODR |= (1 << 5);
+```
+
+is correct because it preserves other pins and only turns ON pin `5`.
+
+#### Example
+
+Assume:
+- `REG = 00001000`
+
+Apply:
+
+```c
+REG |= (1 << 1);
+```
+
+Question:
+What is the final value of `REG`?
+
+```text
+0000 0010
+```
+
+### Bitwise NOT (`~`)
+
+Used to clear a bit.
+
+The `~` operator inverts every bit.
+- Every `0` becomes `1`
+- Every `1` becomes `0`
+
+This is how we:
+- turn OFF LEDs
+- reset registers
+- disable peripherals safely
+
+#### Example
+
+```c
+GPIOA_ODR &= ~(1 << 5);
+```
+
+The `~` operator inverts every bit.
+Every `0` becomes `1`, and every `1` becomes `0`.
+
+Example:
+- Original: `00000101`
+- `~Original`: `11111010`
+
+That is all `~` does.
+
+Why is `~` useful in embedded C?
+By itself, `~` is rarely used. The real power comes when it is combined with `AND (&)`.
+
+The common pattern is:
+
+```c
+REG &= ~(1 << n);
+```
+
+This means:
+Clear (make `0`) bit `n` without changing any other bits.
+
+#### Example
+
+Suppose:
+- `REG = 00101110`
+
+We want to clear bit `3`.
+
+Step 1: Create the mask
+
+```text
+1 << 3
+```
+
+```text
+00000001
+<< 3
+00001000
+```
+
+This mask has only bit `3` set.
+
+Step 2: Apply `~`
+
+```text
+00001000
+~
+11110111
+```
+
+Notice:
+- The bit we want to clear becomes `0`
+- Everything else becomes `1`
+
+Step 3: AND with the register
+
+```text
+REG
+00101110
+
+Mask
+11110111
+
+AND
+00100110
+```
+
+Final result:
+- `00100110`
+- Only bit `3` changed from `1` to `0`
+- Everything else stayed exactly the same.
+
+Why does this work?
+Remember the AND rule:
+- `1 & x = x`
+- `0 & x = 0`
+
+The mask created by:
+
+```c
+~(1 << 3)
+```
+
+looks like:
+
+```text
+11110111
+```
+
+Every `1` says: leave this bit unchanged.
+The single `0` says: force this bit to `0`.
+That is why this technique is used everywhere in embedded programming.
+
+#### Real STM32 example
+
+Suppose `PA5` controls an LED.
+To turn it OFF:
+
+```c
+GPIOA->ODR &= ~(1U << 5);
+```
+
+Read it in English:
+Read the Output Data Register, clear bit `5`, and write the updated value back.
+
+### The three most common bit operations
+
+These are worth memorizing because you will use them constantly:
+
+| Operation | Code | Meaning |
+|---|---|---|
+| Check bit | `REG & (1U << n)` | Is bit `n` set? |
+| Set bit | `REG |= (1U << n)` | Make bit `n = 1` |
+| Clear bit | `REG &= ~(1U << n)` | Make bit `n = 0` |
+
+These three patterns appear throughout STM32 reference manuals, HAL code, LL drivers, and bare-metal firmware.
+
+#### Mini practice
+
+Assume:
+- `REG = 00001111`
+
+Now execute:
+
+```c
+REG &= ~(1 << 2);
+```
+
+Question:
+What is the final value of `REG` in binary?
+
+Take it step by step:
+
+```c
+REG &= ~(1 << 2);
+REG = REG & (~(1 << 2));
+```
+
+Compute `1 << 2`:
+
+```text
+0000 0100
+```
+
+`~(1 << 2) = 1111 1011`
+
+```text
+REG = REG & (~(1 << 2));
+REG = 00001111
+0000 1111   &
+1111  1011
+-----------
+REG = 0000 1011
+```
+
+### Bitwise XOR (`^`)
+
+The result is `1` only when the two bits are different.
+- `0 ^ 0 = 0`
+- `0 ^ 1 = 1`
+- `1 ^ 0 = 1`
+- `1 ^ 1 = 0`
+
+#### Example
+
+```c
+int a = 12;
+int b = 10;
+
+int result = a ^ b;
+```
+
+Step 1: Convert to binary
+- `12 = 00001100`
+- `10 = 00001010`
+
+Step 2: XOR
+
+```text
+00001100
+^00001010
+---------
+00000110
+```
+
+Step 3: Convert back
+- `00000110 = 6`
+- Final answer: `result = 6`
+
+#### Embedded uses of XOR
+
+Unlike `&` and `|`, XOR is not used as frequently, but it is still useful.
+
+1. Toggle a bit
+
+Suppose an LED is connected to bit `5`.
+
+```c
+GPIOA->ODR ^= (1U << 5);
+```
+
+If bit `5` is `0`:
+
+```text
+00000000
+^00100000
+---------
+00100000
+```
+
+LED turns ON.
+
+If bit `5` is already `1`:
+
+```text
+00100000
+^00100000
+---------
+00000000
+```
+
+LED turns OFF.
+
+So every execution toggles the LED.
+
+### Compare the four bitwise operators
+
+| Operator | Embedded purpose |
+|---|---|
+| `&` | Check a bit |
+| `|` | Set a bit |
+| `~` | Invert bits (commonly used with `&` to clear a bit) |
+| `^` | Toggle a bit |
+
+#### Question 1
+
+```c
+int a = 9;
+int b = 5;
+
+int result = a ^ b;
+```
+
+Hint:
+- `9 = 00001001`
+- `5 = 00000101`
+
+What is result?
+
+```text
+00001001
+^00000101
+---------
+00001100
+```
+
+### Right Shift (`>>`)
+
+#### Example
+
+```c
+int x = 40;
+int y = x >> 2;
+```
+
+Step 1: Convert to binary
+- `40 = 00101000`
+
+Step 2: Shift right by `2`
+
+```text
+00101000
+>> 1
+00010100
+
+>> 2
+00001010
+```
+
+Result:
+- `00001010 = 10`
+- So: `y = 10;`
+
+What does right shift do?
+For unsigned positive integers, each right shift by `1` is equivalent to dividing by `2` and discarding any remainder.
+
+#### Examples
+
+| Expression | Result |
+|---|---:|
+| `40 >> 1` | `20` |
+| `40 >> 2` | `10` |
+| `40 >> 3` | `5` |
+
+#### Embedded uses
+
+Right shift is commonly used to:
+- Extract fields from hardware registers
+- Scale values efficiently
+- Decode packed data
+
+For example:
+
+```c
+status = (REG >> 4) & 0x0F;
+```
+
+#### Example
+
+```c
+int x = 48;
+int y = x >> 3;
+```
+
+### Bitwise operator summary
+
+- `&` → Check bits
+- `|` → Set bits
+- `~` → Invert bits (used with `&` to clear bits)
+- `^` → Toggle bits
+- `<<` → Left shift
+- `>>` → Right shift
+
+```c
+REG & (1U << n);   // Check bit
+REG |= (1U << n);  // Set bit
+REG &= ~(1U << n); // Clear bit
+```
