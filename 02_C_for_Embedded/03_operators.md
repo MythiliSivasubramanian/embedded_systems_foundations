@@ -1176,3 +1176,207 @@ REG & (1U << n);   // Check bit
 REG |= (1U << n);  // Set bit
 REG &= ~(1U << n); // Clear bit
 ```
+
+### Conditional (Ternary) Operator (`?:`)
+
+The conditional operator is a short form of `if...else`.
+
+**Syntax**
+
+```
+condition ? expression_if_true : expression_if_false;
+```
+
+Read it as: if the condition is true, use the first expression; otherwise, use the second expression.
+
+#### Example 1
+
+```c
+int a = 10;
+int b = 20;
+
+int max = (a > b) ? a : b;
+```
+
+Let's evaluate it.
+
+Step 1 — Condition:
+
+```
+a > b  // 10 > 20
+```
+
+Result: false (`0`).
+
+Step 2 — Since the condition is false, the expression after `:` is chosen:
+
+```
+max = b; // max = 20
+```
+
+Equivalent `if...else`:
+
+```c
+int max;
+if (a > b) {
+   max = a;
+} else {
+   max = b;
+}
+```
+
+The compiler will generate appropriate instructions for either form. The ternary operator is simply a more compact way to express the same decision.
+
+#### Embedded example
+
+```c
+brightness = (battery_low) ? 20 : 100;
+```
+
+Meaning:
+- If `battery_low` is true → `brightness = 20`%
+- Otherwise → `brightness = 100`%
+
+Good for simple value selection. Avoid it for long or complex logic where an `if...else` is easier to read.
+
+### `sizeof` Operator
+
+`sizeof` returns the number of bytes occupied by a type or an object.
+
+**Syntax**:
+
+```
+sizeof(type)
+```
+or
+```
+sizeof(variable)
+```
+
+#### Example 1
+
+```c
+int a = 10;
+printf("%zu\n", sizeof(a));
+```
+
+On an STM32 (32-bit ARM Cortex-M) the output is `4` because `int = 4` bytes.
+
+#### Example 2
+
+```c
+char c = 'A';
+sizeof(c); // 1
+```
+
+#### Example 3
+
+```c
+float f;
+sizeof(f); // 4
+```
+
+`sizeof` is determined by the compiler at compile time. For example, `sizeof(int)` may be replaced by `4` on this target before the program runs.
+
+CPU view (conceptual):
+
+```asm
+MOV R1, #4
+STR R1, [size]
+```
+
+#### Embedded uses
+
+1. Array size
+
+```c
+int arr[10];
+// instead of writing 40, write sizeof(arr)
+```
+
+`sizeof(arr)` becomes `80` automatically if the array size changes to `int arr[20];`.
+
+2. UART transmission
+
+```c
+char msg[] = "Hello";
+send(msg, sizeof(msg));
+```
+
+3. Structures
+
+```c
+struct SensorData data;
+sizeof(data);
+```
+
+##### Important difference
+
+Don't confuse `sizeof(arr)` with `sizeof(arr[0])`.
+
+```c
+int arr[10];
+sizeof(arr);      // 40 bytes (whole array)
+sizeof(arr[0]);   // 4 bytes (one element)
+```
+
+To get the number of elements:
+
+```c
+sizeof(arr) / sizeof(arr[0]);
+```
+
+#### Example
+
+```c
+int adc_samples[100];
+for (int i = 0; i < sizeof(adc_samples) / sizeof(adc_samples[0]); i++) {
+   ...
+}
+```
+
+### Comma Operator (`,`) 
+
+Don't confuse the comma as a separator with the comma operator — they are different.
+
+Comma as a separator (most common):
+
+```c
+int a = 10, b = 20, c = 30;
+func(a, b, c);
+```
+
+The comma operator evaluates expressions from left to right and the value of the last expression becomes the result.
+
+```c
+int x;
+x = (5, 10); // x = 10
+```
+
+Example:
+
+```c
+int a = 5;
+int b = 10;
+int x = (a++, b++);
+// After: a = 6, b = 11, x = 10
+```
+
+The comma operator is rarely used in embedded systems except in constructs like:
+
+```c
+for (i = 0, j = 10; i < j; i++, j--) {
+   ...
+}
+```
+
+##### Questions
+
+```c
+int x;
+x = (3, 8); // x = 8
+
+int a = 2;
+int b = 5;
+int x = (a++, ++b); // a = 3, b = 6, x = 6
+```
