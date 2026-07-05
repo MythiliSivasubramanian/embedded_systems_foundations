@@ -161,3 +161,100 @@ So: `1U << 5` creates a value where only bit 5 is set.
 This is why it's used to create bit masks.
 
 We'll use this constantly in STM32.
+
+## Bit Masks
+
+Everything we learned about shifting now has a purpose.
+
+For example: `1U << 5` creates:
+
+```text
+00100000
+```
+
+That pattern is called a mask.
+
+Using masks, we will learn to:
+
+1. Set a bit
+2. Clear a bit
+3. Toggle a bit
+4. Read a bit
+
+And that's exactly how we control GPIO pins, timers, UART, SPI, I2C, RCC, interrupts—almost every peripheral on an STM32.
+
+### What is a Mask?
+
+A mask is simply a binary value used to operate on specific bit(s).
+
+Example: `00100000`
+
+This mask has only bit 5 set.
+
+How do we create it? `1U << 5`
+
+Let's prove it.
+
+```text
+00000001
+
+<<5
+
+00100000
+```
+
+So:
+
+`1U << 5` creates a mask where only bit 5 is `1`.
+
+#### Why do we need masks?
+
+Suppose we have an 8-bit register.
+
+```text
+REG
+
+Bit7 Bit6 Bit5 Bit4 Bit3 Bit2 Bit1 Bit0
+
+0    1    0    1    1    0    0    1
+```
+
+Suppose we want to change only Bit 5.
+
+We must leave every other bit unchanged.
+
+That's what masks are for.
+
+### Setting a Bit
+
+Suppose: `REG 00001001`
+
+We want to set Bit 5.
+
+Mask: `1U << 5`
+
+Binary: `00100000`
+
+Now OR them.
+
+```text
+00001001
+
+00100000
+
+OR
+----------------
+
+00101001
+```
+
+Bit 5 becomes `1`.
+
+Everything else remains unchanged.
+
+Therefore: `REG |= (1U << 5);`
+
+means `REG = REG | (1U << 5);`
+
+Rule: OR (`|`) is used to SET bits.
+
