@@ -240,12 +240,12 @@ Now OR them.
 ```text
 00001001
 
-00100000
+0010 0000
 
 OR
 ----------------
 
-00101001
+0010 1001
 ```
 
 Bit 5 becomes `1`.
@@ -257,4 +257,157 @@ Therefore: `REG |= (1U << 5);`
 means `REG = REG | (1U << 5);`
 
 Rule: OR (`|`) is used to SET bits.
+
+#### Another Example
+
+Initial register: `0010 0010`
+
+Execute: `REG |= (1U << 2);`
+
+Question:
+
+What is the final register?
+
+Only Bit 2 is set: `0010 0110`
+
+### Clearing a Bit
+
+Suppose: `REG 0010 1111`
+
+We want to clear Bit 3.
+
+First create mask.
+
+`1 << 3`
+
+```text
+00001000
+```
+
+Invert it.
+
+```text
+11110111
+```
+
+Now AND.
+
+```text
+00101111
+11110111
+----------------
+00100111
+```
+
+Bit 3 becomes `0`.
+
+Everything else stays the same.
+
+Therefore:
+
+`REG &= ~(1U << 3);`
+
+means
+
+`REG = REG & ~(1U << 3);`
+
+Rule: AND (`&`) with an inverted mask is used to CLEAR bits.
+
+#### Additional Example
+
+Initial register: `1110 1111`
+
+Execute:
+
+`REG &= ~(1U << 2);`
+
+What is the final register? `1110 1011`
+
+Only bit 2 is cleared.
+
+### Toggling a Bit
+
+Suppose: `REG 0010 1100`
+
+Toggle Bit 2.
+
+Mask: `(1U << 2)`
+
+```text
+00000100
+```
+
+Use XOR.
+
+```text
+00101100
+00000100
+----------------
+00101000
+```
+
+Bit 2 changes:
+
+- `1 → 0`
+- if it had been `0`: `0 → 1`
+
+Therefore:
+
+`REG ^= (1U << 2);`
+
+Rule: XOR (`^`) toggles bits.
+
+#### Additional Example
+
+Initial register: `0001 0000`
+
+Execute: `REG ^= (1U << 4);`
+
+What is the final register? `0000 0000`
+
+4th bit is toggled from `1` to `0`.
+
+#### Reading a Bit
+
+Suppose: `REG 0010 1010`
+
+We want to know if Bit 5 is set.
+
+Mask: `(1U << 5)`
+
+```text
+00100000
+```
+
+AND them.
+
+```text
+00101010
+00100000
+----------------
+00100000
+```
+
+Result is not zero, so Bit 5 is set.
+
+In C:
+
+```c
+if (REG & (1U << 5))
+{
+    // Bit 5 is set
+}
+```
+
+If the result had been `0000 0000` then Bit 5 would be clear or not set.
+
+### Summary table
+
+| Operation | Operator | Purpose           |
+| --------- | -------- | ----------------- |
+| Set       | `|=`      | Make a bit `1`    |
+| Clear     | `&= ~`   | Make a bit `0`    |
+| Toggle    | `^=`     | Flip a bit        |
+| Read      | `&`      | Check if bit is `1` |
+
 
