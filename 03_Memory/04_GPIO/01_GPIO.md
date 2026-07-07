@@ -420,3 +420,124 @@ What does:
 *p
 
 give? 100
+
+Now let's make one tiny step forward.
+
+Imagine:
+
+Address
+
+`5000 → 100`
+
+We write: `*p = 200;`
+
+Before:
+
+```text
+5000 → 100
+```
+
+After:
+
+```text
+5000 → 200
+```
+
+Because `*p` does not create a copy — it directly accesses the memory location.
+
+This is exactly why hardware registers work.
+
+A GPIO register is conceptually like:
+
+```text
+0x40020014 → 00000000
+```
+
+Then:
+
+```c
+*GPIO_REGISTER = 0x20;
+```
+
+changes the register to:
+
+```text
+0x40020014 → 00100000
+```
+
+The GPIO hardware sees that bit change and updates the pin voltage accordingly.
+
+Now one more small check before we return to GPIO:
+
+Given:
+
+```text
+Address
+8000 → 55
+9000 → 8000
+```
+
+and:
+
+```c
+int *ptr = (int *)9000;
+```
+
+Answer:
+
+- `ptr` holds the value stored at address `9000`, which is `8000` — i.e. `ptr` points to address `8000`.
+- `*ptr` is the value at address `8000`, which is `55`.
+
+Now let's connect this back to GPIO:
+
+Before (normal variable):
+
+```text
+RAM
+5000 → 35
+p    → 5000
+```
+
+You created:
+
+```c
+int temperature = 35;
+int *p = &temperature;
+```
+
+The compiler allocated memory for these variables.
+
+For GPIO, the hardware designers already reserved an address:
+
+```text
+Memory Map
+0x40020014 → GPIO Register
+```
+
+No C variable was created by you — the hardware owns that address.
+
+We can create a pointer to that address to access it from C:
+
+```c
+unsigned int *GPIO_ODR = (unsigned int *)0x40020014;
+/* preferred: use volatile and fixed-width types in production */
+```
+
+Conceptually:
+
+```text
+GPIO_ODR
+   |
+   v
+0x40020014 → GPIO hardware register
+```
+
+Then:
+
+```c
+*GPIO_ODR = 0x20;
+```
+
+means: go to the GPIO register address and write `0x20`.
+
+Note: In production code you should prefer `volatile uint32_t` and vendor-provided peripheral structs or macros (see earlier note). The examples above are intentionally minimal to show the pointer concept.
