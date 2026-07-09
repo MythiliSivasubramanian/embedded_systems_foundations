@@ -282,15 +282,12 @@ A timer is a built-in hardware module inside the microcontroller that keeps trac
 Without timers, the CPU would have to continuously count numbers just to create delays. This wastes processing power.
 
 Example:
-
 Suppose an LED should blink every 1 second.
 
 Without a timer:
-
 The CPU repeatedly counts numbers and waits.
 
 With a timer:
-
 The timer counts automatically and notifies the CPU after 1 second.
 
 Timers are used for:

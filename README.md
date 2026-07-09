@@ -58,14 +58,14 @@ The goal is to understand how hardware and software interact at a deeper level.
 
 ## Repository Structure
 
-```text
+
 fundamentals/
 c-for-embedded/
 stm32/
 microcontroller-basics/
 projects/
 diagrams/
-```
+variables_memory_ organization
 
 ---
 
@@ -76,5 +76,5 @@ Arrays
 Searching  
 Sorting (Bubble Sort)  
 Starting Embedded Foundations
-
+Variables storage and memory organization
 ---

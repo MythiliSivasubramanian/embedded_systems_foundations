@@ -17,11 +17,9 @@ Below are the questions which I am trying to find out:
 
 Rather than studying every variable separately, below is a C program that contains almost every storage class.
 
----
-
 # Example Program
 
-c
+
 #include <stdio.h>
 
 int g1;                     // (1) Uninitialized global variable
@@ -66,44 +64,25 @@ int main(void)
 
 Every variable in this program behaves differently, so I used it to understand exactly what happens behind the scenes.
 
----
+
 
 # From Source Code to Running Program
 
 
-main.c
-   │
-   ▼
-Compiler
-   │
-   ▼
-Object File (.o)
-   │
-   ▼
-Linker
-   │
-   ▼
-firmware.elf / firmware.bin
-   │
-   │ Flash the MCU
-   ▼
+main.c  -> Compiler  -> Object File (.o)   ->   Linker   ->   firmware.elf / firmware.bin  ->  Flash the MCU
 
-MCU Reset
-   │
-   ▼
-Reset_Handler (Startup Code)
-   │
-   ├── Initialize Stack Pointer
-   ├── Copy .data from Flash → RAM
-   ├── Clear .bss (fill with 0)
-   └── Jump to main()
+MCU Reset  ->  Reset_Handler (Startup Code)
+   
+                   ├── Initialize Stack Pointer
+                   ├── Copy .data from Flash → RAM
+                   ├── Clear .bss (fill with 0)
+                   └── Jump to main()
 
 main()
 
 
 One of the biggest realizations during this study was that the **compiler**, **linker**, and **startup code** all have completely different responsibilities.
 
----
 
 # Compiler
 
@@ -113,7 +92,6 @@ For local variables, it also generates instructions that create stack frames, re
 
 The compiler **does not** copy variables from Flash to RAM.
 
----
 
 # Linker
 
@@ -128,7 +106,6 @@ It also places variables into their respective memory sections such as:
 
 The linker decides where each variable belongs in memory.
 
----
 
 # Startup Code (Reset_Handler)
 
@@ -145,7 +122,6 @@ The startup code **does not** initialize local variables or create stack frames.
 
 Those are handled later by compiler-generated instructions whenever a function is called.
 
----
 
 # Memory Sections in Flash 
 
@@ -233,8 +209,6 @@ int x;
 
 int y = 20;
 
-
----
 
 # Important Realization
 
