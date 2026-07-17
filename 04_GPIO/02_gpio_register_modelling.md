@@ -230,6 +230,51 @@ It tells the compiler:
 
 This is essential when working with memory-mapped peripheral registers.
 
+There are actually four different declarations:
+
+- `volatile int *p;`
+- `int * volatile p;`
+- `volatile int * volatile p;`
+- `int *p;`
+
+They all mean something different.
+
+#### Deep understanding of the four volatile pointer declarations:
+
+##### Case 1: `volatile int *p;`
+Meaning:
+
+- `p ---> volatile integer`
+- The address is normal.
+- The data is volatile.
+
+##### Case 2: `int * volatile p;`
+Meaning:
+
+- `volatile p ---> normal integer`
+- The pointer address itself may change.
+
+Example use:
+
+- An interrupt changes where a pointer points.
+
+##### Case 3: `volatile int * volatile p;`
+Meaning:
+
+- `volatile p ---> volatile integer`
+- Both can change.
+
+##### Case 4: `int *p;`
+
+Meaning:
+
+- `normal pointer ---> normal integer`
+
+So now,
+`volatile union GPIO_ODR_REGISTER *ODR;` is case 1.
+
+The register contents are volatile. The pointer is not.
+
 ## What I Learned
 
 Before this lesson, I understood structures, unions, pointers and bit-fields individually.
