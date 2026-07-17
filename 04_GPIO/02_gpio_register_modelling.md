@@ -4,6 +4,8 @@ Today I learned how C can represent actual hardware registers inside a microcont
 
 ## Why model hardware registers?
 
+### The main idea
+
 A GPIO register inside the STM32 is nothing more than a fixed memory location. Every bit inside that register has a meaning. Instead of using bit masks everywhere, C allows us to model the register in a much more readable way.
 
 The goal is to access both:
@@ -64,6 +66,8 @@ This makes the C structure match the actual register layout.
 
 ## Using a Union for Two Different Views
 
+### Two views of the same register
+
 A union allows multiple members to share the same memory.
 
 ```c
@@ -79,6 +83,8 @@ Both members occupy the same 32-bit storage.
 This allows the register to be accessed in two different ways.
 
 ### Example usage
+
+This example shows the same register being used in two different ways.
 
 ```c
 volatile union GPIO_ODR_REGISTER *ODR = (volatile union GPIO_ODR_REGISTER *)0x40020014;
@@ -297,6 +303,8 @@ This was the first time I could clearly see how C interacts directly with STM32 
 
 The following code combines all the concepts learned in this chapter.
 
+This example brings all the ideas together in one complete program.
+
 It demonstrates how:
 
 * Bit-fields model individual GPIO pins.
@@ -370,3 +378,261 @@ int main(void)
     return 0;
 }
 ```
+
+With this ODR = (volatile union GPIO_ODR_REGISTER *)0x40020014;
+If we access the register 50 times, then how many times should we write this?
+This example shows why writing the address every time becomes inconvenient.
+Probably something like:
+
+```c
+ODR->bits.PA5 = 1;
+
+...
+
+ODR->value = 0;
+
+...
+
+ODR->bits.PA7 = 1;
+```
+
+The question is, suppose we didn't have the pointer variable ODR or a macro.
+
+### Why macros help
+
+Every time we wanted to access the register, we would have to write, (volatile union GPIO_ODR_REGISTER *)0x40020014 everytime which is hard to read, easy to mistype, and difficult to maintain.
+Hence we are giving this long expression a short name like GPIOA_ODR which is a macro (without creating a variable).
+
+So #define GPIOA_ODR ((volatile union GPIO_ODR_REGISTER *)0x40020014) is just a name that the preprocessor replaces before compilation. During preprocessing stage in build process, the preprocessor changes GPIOA_ODR to (volatile union GPIO_ODR_REGISTER *)0x40020014. The complier doesnt even know that GPIOA_ODR even existied. Hence, it doesnt create a varibale, no memory allocated in RAM or elsewhere.
+
+Note: Although we use macro, Volatile is used, because the hardware register value at 0x40020014 can change unexpectedly
+
+Now the question arises, cant we access the individual pins (in structure) using a pointer variable? Yes, we can do that, but it would have few disadvantages, compared to using a macro.
+
+- A pointer variable requries memroy allocation in RAM
+- when the file is large with many ports (each port has many registers), then it could be messy with large memory allocated.
+- Whereas, macro doesnt need a storage. It directly substitutes the expression.
+
+| Pointer variable                | Macro                            |
+| ------------------------------- | -------------------------------- |
+| Stored as a variable            | Replaced before compilation      |
+| Needs memory                    | No memory                        |
+| Can be assigned                 | Fixed expression                 |
+| Created at runtime in your code | Exists only during preprocessing |
+
+#### Example:
+
+This example shows how the preprocessor turns the macro into the real address expression.
+
+```c
+GPIOA_ODR->bits.PA5 = 1;
+```
+
+The preprocessor transforms it into:
+
+```c
+((volatile union GPIO_ODR_REGISTER *)0x40020014)->bits.PA5 = 1;
+```
+
+Then the compiler generates machine code. The macro itself does not exist anymore.
+
+Hence, Macros are commonly used for:
+
+Hardware addresses :
+Example:
+
+```c
+#define GPIOA_BASE 0x40020000
+```
+
+Register addresses :
+Example:
+
+```c
+#define GPIOA_ODR_ADDRESS (GPIOA_BASE + 0x14)
+```
+
+Bit positions :
+Example:
+
+```c
+#define PIN5 (1U << 5)
+```
+
+#### Comparision of two ways : Using Macro and using a pointer variable :
+
+##### 1. Using macro:
+
+```text
+C code
+     |
+     |
+     v
+Preprocessor
+     |
+     |  replaces #define names
+     |
+     v
+Compiler
+     |
+     |
+     v
+Machine code
+     |
+     |
+     v
+CPU writes to address 0x40020014
+     |
+     |
+     v
+GPIO hardware changes PA5
+```
+
+Now let's compare the two styles you already know.
+
+Style 1: Pointer variable
+
+```c
+volatile union GPIO_ODR_REGISTER *ODR;
+
+ODR = (volatile union GPIO_ODR_REGISTER *)0x40020014;
+
+ODR->bits.PA5 = 1;
+```
+
+Memory:
+
+```text
+RAM
+
+ODR variable
++-------------+
+| 0x40020014  |
++-------------+
+
+        |
+        v
+
+Hardware register
+0x40020014
+```
+
+The pointer variable exists in memory.
+
+Style 2: Macro
+
+```c
+#define GPIOA_ODR ((volatile union GPIO_ODR_REGISTER *)0x40020014)
+
+GPIOA_ODR->bits.PA5 = 1;
+```
+
+Memory:
+
+```text
+No GPIOA_ODR variable
+
+GPIOA_ODR
+    |
+    | replaced before compilation
+    v
+
+0x40020014
+```
+
+No pointer storage is needed.
+
+### Types of macros
+
+There are two types of macros we'll commonly see in embedded C.
+
+1. Object-like macros
+2. Function-like macros
+
+#### 1. Object-like macros
+
+These replace a name with a value or expression.
+
+Example:
+
+```c
+#define GPIOA_BASE 0x40020000U
+```
+
+or
+
+```c
+#define GPIOA_ODR ((volatile union GPIO_ODR_REGISTER *)0x40020014)
+```
+
+These don't take any arguments.
+
+#### 2. Function-like macros
+
+These look like functions because they take arguments.
+
+Example:
+
+```c
+#define SQUARE(x) ((x) * (x))
+```
+
+Usage:
+
+```c
+int y = SQUARE(5);
+```
+
+The preprocessor replaces it with:
+
+```c
+int y = ((5) * (5));
+```
+
+Again, no function is called. It is still just text replacement.
+
+Now, which type of macro is this?
+
+```c
+#define GPIOA_BASE 0x40020000U
+```
+
+A) Object-like macro
+
+B) Function-like macro
+
+#define GPIOA_BASE 0x40020000U is an object-like macro.
+
+Because it has:
+
+- a name (GPIOA_BASE)
+- a replacement (0x40020000U)
+- no parameters
+
+So the preprocessor simply does:
+
+GPIOA_BASE
+      ↓
+0x40020000U
+
+Nothing more.
+
+Now look at this:
+
+#define GPIOA_ODR ((volatile union GPIO_ODR_REGISTER *)0x40020014) Is this also an object-like macro? Or is it a function-like macro?
+
+This is also an object-like macro.
+
+Why? Because it has:
+
+- A name: GPIOA_ODR
+- A replacement text: ((volatile union GPIO_ODR_REGISTER *)0x40020014)
+- No parameters
+
+So the preprocessor performs:
+
+GPIOA_ODR
+        ↓
+((volatile union GPIO_ODR_REGISTER *)0x40020014)
+
+Again, it is just text replacement.
