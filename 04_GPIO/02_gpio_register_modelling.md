@@ -636,3 +636,228 @@ GPIOA_ODR
 ((volatile union GPIO_ODR_REGISTER *)0x40020014)
 
 Again, it is just text replacement.
+
+## 1. Read a pin :
+
+- - How does a C program read the state of a physical GPIO pin? - - 
+- - if(GPIOA_IDR->bits.PA5) Lets Understand:
+    - What does the CPU actually read?
+    - Where did that bit come from?
+    - How does pressing a button change the register? - - 
+    
+    
+Basically, the GPIO Pin can be configured either as Input or as output.
+
+Output Mode : 
+
+The MCU controls the pin. 
+
+Example:
+
+```text
+CPU
+ ↓
+GPIO
+ ↓
+PA5 voltage HIGH/LOW
+ ↓
+LED
+```
+
+Here, C code writes a register. Example: GPIOA_ODR->bits.PA5 = 1;
+
+Input mode :
+
+The outside world controls the pin.
+
+Example :
+
+```text
+Button
+   ↓
+PA0 pin
+   ↓
+GPIO hardware
+   ↓
+CPU reads the state
+```
+Here, C code reads a register. Example: value = GPIOA_IDR->bits.PA0;
+
+So: ODR = Output Data Register. Used when: We want to control a pin.
+
+IDR = Input Data Register. Used when: We want to know the pin state.
+
+Suppose, if we connect a push button to PA0 and want to know whether the button is pressed, should we use:
+GPIOA_ODR or  GPIOA_IDR ?
+
+GPIOA_IDR because a button is an external signal. The MCU is not controlling it; the MCU is observing it.
+
+So the path is:
+
+```text
+Button
+  |
+  | voltage changes
+  ↓
+PA0 physical pin
+  |
+  ↓
+GPIO input circuitry
+  |
+  ↓
+GPIOA_IDR bit 0
+  |
+  ↓
+C code reads it
+```
+
+Earlier we modelled ODR:
+
+struct GPIO_ODR_BITS
+{
+    unsigned int PA0 : 1;
+    ...
+    unsigned int PA15 : 1;
+    unsigned int reserved : 16;
+};
+
+For IDR, the hardware layout is almost the same idea.
+
+The STM32 reference manual says:
+
+Bits 0–15 → input data bits
+Bits 16–31 → reserved
+
+So we can create:
+
+struct GPIO_IDR_BITS
+{
+    unsigned int PA0 : 1;
+    unsigned int PA1 : 1;
+    ...
+    unsigned int PA15 : 1;
+
+    unsigned int reserved : 16;
+};
+
+Same concept.
+
+Now think about the hardware.
+
+Suppose:
+
+Button is not pressed
+PA0 voltage = LOW
+
+The hardware register contains:
+
+GPIOA_IDR
+
+Bit 31                         Bit 0
+
+00000000 00000000 00000000 00000000
+                               ^
+                               PA0 = 0
+
+The CPU reads:
+
+GPIOA_IDR->bits.PA0
+
+Result:
+
+0
+
+Now button pressed:
+
+Physical voltage changes:
+
+LOW → HIGH
+
+GPIO hardware updates the register:
+
+00000000 00000000 00000000 00000001
+                                      ^
+                                      PA0 = 1
+
+Now:
+
+GPIOA_IDR->bits.PA0
+
+returns:
+
+1
+
+Notice something important:
+
+The CPU did not write anything.
+
+The hardware changed the register.
+
+This is exactly why volatile matters.
+
+So, When the button is pressed and PA0 changes from 0 → 1, who changed the value inside GPIOA_IDR? Is that the C program or the GPIO hardware based on the electrical signal?
+
+The GPIO hardware based on the electrical signal. A register is not always changed by our C code. Hardware can update registers independently.
+
+In this case:
+Button pressed
+      ↓
+Voltage changes on PA0
+      ↓
+GPIO input circuitry detects it
+      ↓
+GPIOA_IDR bit 0 changes
+      ↓
+CPU reads the new value
+
+The C program only observes the register.
+
+Now let's connect this to volatile again.
+
+Imagine this code:
+
+while(GPIOA_IDR->bits.PA0 == 0)
+{
+}
+
+It mneans Keep checking PA0 until it becomes HIGH. Without volatile, a compiler would  read PA0 once, it was 0, and the program itself never changes it. so it will keep using the same value 0.
+
+But that is wrong because:
+Outside world
+      |
+      ↓
+Hardware
+      |
+      ↓
+GPIOA_IDR changes
+
+Therefore the register must be declared volatile so every read actually accesses the hardware register.
+
+Now let's build the C model.
+
+We already have:
+
+union GPIO_ODR_REGISTER
+{
+    unsigned int value;
+    struct GPIO_ODR_BITS bits;
+};
+
+For input, we create another model:
+
+union GPIO_IDR_REGISTER
+{
+    unsigned int value;
+    struct GPIO_IDR_BITS bits;
+};
+
+We know the register address comes from:
+
+Peripheral Base Address + Register Offset
+
+For GPIOA:
+
+GPIOA Base Address = 0x40020000
+GPIOA IDR Offset   = 0x10
+--------------------------------
+GPIOA IDR Address  = 0x40020010
