@@ -861,3 +861,188 @@ GPIOA Base Address = 0x40020000
 GPIOA IDR Offset   = 0x10
 --------------------------------
 GPIOA IDR Address  = 0x40020010
+
+
+## 2. Write a Pin
+
+Before writing any C code, let's understand what writing a pin actually means.
+Suppose PA5 is connected to an LED.
+
+```
+      3.3V
+        │
+      (Circuit)
+        │
+      LED
+        │
+PA5 ---------------- STM32
+```
+
+Earlier, we learned:
+```
+GPIOA_IDR->bits.PA0    This was reading.
+```
+
+The flow was:
+
+```
+Button
+   │
+   ▼
+PA0 physical pin
+   │
+   ▼
+GPIO input circuitry
+   │
+   ▼
+GPIOA_IDR bit 0
+   │
+   ▼
+CPU reads it
+```
+
+Notice something important: The outside world changed the voltage.
+
+Now let's compare it with writing.
+Suppose we execute:
+
+```
+CPU
+ │
+ ▼
+Writes GPIOA_ODR bit 5 = 1
+ │
+ ▼
+GPIO peripheral
+ │
+ ▼
+PA5 physical pin becomes HIGH
+ │
+ ▼
+LED turns ON
+```
+
+### Key Notes
+
+When we read a pin: The CPU is observing the outside world.
+
+When we write a pin: The CPU is controlling the outside world.
+
+### Example
+
+Suppose when we write: `GPIOA_ODR->bits.PA5 = 1;`
+
+**Who actually makes PA5 become 3.3V?**
+
+A. The CPU directly drives the voltage on the pin.
+B. The CPU writes the ODR register, and the GPIO hardware drives the pin HIGH.
+
+The answer is the CPU writes the ODR register, and the GPIO hardware drives the pin HIGH.
+
+When we write: `GPIOA_ODR->bits.PA5 = 1;` the CPU is not electrically connected to PA5.
+
+#### What Actually Happens
+
+```
+           STM32 MCU
+
++----------------------------------+
+|                                  |
+|      CPU                         |
+|        │                         |
+|        │ writes                  |
+|        ▼                         |
+|   GPIO Output Data Register      |
+|        │                         |
+|        ▼                         |
+|    GPIO Peripheral Logic         |
+|        │                         |
++--------│-------------------------+
+         │
+         ▼
+     PA5 Physical Pin
+         │
+         ▼
+        LED
+```
+
+The CPU's job ends here:
+
+```
+CPU
+ │
+ ▼
+GPIOA_ODR bit 5 = 1
+```
+
+Then the GPIO peripheral hardware says: "Bit 5 became 1." So it changes the voltage on PA5 to HIGH.
+
+```
+CPU
+ │
+ ▼
+GPIO Register
+ │
+ ▼
+GPIO Hardware
+ │
+ ▼
+Pin Voltage Changes
+```
+
+**So does the CPU directly control the GPIO pin?**
+
+No. The CPU writes to the GPIO peripheral registers. The GPIO peripheral hardware interprets those register values and drives the physical pin accordingly.
+
+Let's now consider:
+
+```
+GPIOA_ODR->bits.PA5 = 1;
+```
+
+At this moment, what actually changes inside the register first?
+
+**Is it:**
+- A) The entire 32-bit register becomes `0x00000020`
+or
+- B) Only bit 5 changes from 0 to 1, while all the other bits remain unchanged?
+
+Actually, there are two different levels of understanding:
+
+**Level 1 (C language)**
+
+Our statement: `ODR->bits.PA5 = 1;` means just modify only bit 5.
+
+**Level 2 (Machine instructions)**
+
+The compiler might generate something like this:
+
+1. Read the 32-bit register.
+2. Modify bit 5.
+3. Write the 32-bit register back.
+
+So the hardware bus may still perform a 32-bit write, even though logically only one bit changed.
+
+> **Note:** This depends on the architecture, compiler, optimization, and peripheral. We'll learn about this part at a later stage.
+
+For now, let's consider Level 1, which is `GPIOA_ODR->bits.PA5 = 1;` where only bit 5 changes from 0 to 1, while all the other bits remain unchanged.
+
+Conceptual flow:
+
+```
+CPU
+ │
+ ▼
+Change PA5 bit in ODR
+ │
+ ▼
+GPIO hardware notices bit 5 = 1
+ │
+ ▼
+PA5 pin goes HIGH
+ │
+ ▼
+LED turns ON
+```
+
+
