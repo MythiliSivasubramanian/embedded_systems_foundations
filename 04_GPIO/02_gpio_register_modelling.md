@@ -1045,108 +1045,128 @@ PA5 pin goes HIGH
 LED turns ON
 ```
 
-The otherway to set pin 5 to high is GPIOA->ODR |= (1U << 5);  ODR->bits.PA5 = 1; (bit field approach) and GPIOA->ODR |= (1U << 5); (bit mask approach). Both seem to set PA5 HIGH. So why are there two different ways?
+There are actually two different ways to set pin 5 to HIGH:
+
+1. `ODR->bits.PA5 = 1;` (bit-field approach)
+2. `GPIOA->ODR |= (1U << 5);` (bit-mask approach)
+
+Both seem to set PA5 HIGH. So why are there two different ways?
 
 Both methods express the same intention: setting PA5 HIGH. However, they represent the operation differently. One uses a named bit-field, while the other uses bit manipulation with a mask.
 
-**Method 1: Bit-field approach:** 
+**Method 1: Bit-field approach**
 
+```c
 ODR->bits.PA5 = 1;
+```
+
 Meaning: Go to the PA5 bit field and set it to 1.
 
-**Method 2: Bit-mask approach:**
+**Method 2: Bit-mask approach**
 
+```c
 GPIOA->ODR |= (1U << 5);
-Let's ignore the |= for one minute.
+```
 
-Lets first understand this:
+Let's ignore the `|=` for one minute and first understand this:
+
+```
 1U << 5
-Start:  0000 0001
+Start:        0000 0001
 Shift left 5 positions: 0010 0000
+```
 
-So: (1U << 5) creates a mask:
+So `(1U << 5)` creates a mask:
 
+```
 Bit:   7 6 5 4 3 2 1 0
-
        0 0 1 0 0 0 0 0
              ^
              |
             PA5
-            
-            
-Now the question is: Why do we need a mask?
+```
 
-Imagine the register currently contains: GPIOA_ODR
+**Why do we need a mask?**
 
+Imagine the register currently contains: `GPIOA_ODR`
+
+```
 Bit15                         Bit0
-
 0000 0000 0000 1000
                    ^
                    PA3 = 1
+```
 
 PA3 is already HIGH.
 
-Now we want: GPIOA->ODR |= (1U << 5);
+Now we want: `GPIOA->ODR |= (1U << 5);`
 
-The goal is:
+**The goal is:**
 - PA5 becomes 1
 - PA3 remains 1
 - All other pins remain unchanged
 
-After operation: GPIOA->ODR |= (1U << 5);
+After operation: `GPIOA->ODR |= (1U << 5);`
 
+```
 0000 0000 0010 1000
              ^
              PA5 = 1
-
                    ^
                    PA3 = 1
-                   
-The important idea: | means: Keep existing 1s, and force this bit to 1.
+```
+
+The important idea: `|` means: **Keep existing 1s, and force this bit to 1.**
 
 So:
 
+```
 Existing register: 0000 1000
+OR mask:          0010 0000
+Result:           0010 1000
+```
 
-OR mask:   0010 0000
+**Why not simply write?**
 
-Result: 0010 1000
+Why not: `GPIOA->ODR = 0x20;`
 
-Why not simply write?
-
-Why not:  GPIOA->ODR = 0x20;
-
-Because this means: Replace the entire register with this value.
+Because this means: **Replace the entire register with this value.**
 
 Example:
 
 Before:
 
+```
 PA7 PA6 PA5 PA4 PA3 PA2 PA1 PA0
-
  0   0   0   0   1   0   0   0
+```
 
-Write: GPIOA->ODR = 0x20;
+Write: `GPIOA->ODR = 0x20;`
 
 After:
 
+```
+PA7 PA6 PA5 PA4 PA3 PA2 PA1 PA0
  0   0   1   0   0   0   0   0
+```
 
-PA3 was lost.
+PA3 was lost!
 
-So the difference:
+**The difference:**
 
-GPIOA->ODR = (1U << 5); means: Replace the whole register.
-GPIOA->ODR |= (1U << 5); means: Set bit 5, keep everything else.
+- `GPIOA->ODR = (1U << 5);` means: Replace the whole register.
+- `GPIOA->ODR |= (1U << 5);` means: Set bit 5, keep everything else.
 
-This operation is called: **Read-Modify-Write**
+This operation is called: **Read-Modify-Write (RMW)**
 
 Because internally the CPU conceptually does:
 
+```
 1. Read ODR
-        ↓
+    ↓
 2. Modify bit 5
-        ↓
+    ↓
 3. Write ODR back
+```
 
 We will explore this more later when we discuss register operations.
