@@ -1303,3 +1303,60 @@ Conceptually, this means:
 4. Write the result back
 
 **Result:** PA5 is cleared, while every other pin keeps its previous state.
+
+## Toggle a GPIO Pin
+
+The code is:
+
+```c
+GPIOA->ODR ^= (1U << 5);
+```
+
+Ignore `^=` for now. Let's first understand the mask: `1U << 5`
+
+We already know it creates:
+
+```
+Bit: 7 6 5 4 3 2 1 0
+     0 0 1 0 0 0 0 0
+           ↑
+          PA5
+```
+
+Exactly the same mask we used for Set and Clear. But what's different? **The operator.**
+
+Earlier we used:
+- `|` for Set
+- `&` for Clear
+- Now we use: `^` for Toggle
+
+### XOR (Exclusive OR) Operation
+
+The XOR rule:
+
+| Register Bit | Mask Bit | Result |
+| ------------ | -------- | ------ |
+| 0            | 0        | 0      |
+| 0            | 1        | 1      |
+| 1            | 0        | 1      |
+| 1            | 1        | 0      |
+
+**How XOR Works:**
+- XOR (`^`) toggles the selected bit
+- If the bit is 0, it becomes 1
+- If the bit is 1, it becomes 0
+- Bits corresponding to 0 in the mask remain unchanged
+
+### Summary of GPIO Operations
+
+| Operation | Code                        | Meaning           |
+| --------- | --------------------------- | ----------------- |
+| Set       | `GPIOA->ODR \|= (1U << 5);` | Force PA5 to `1`  |
+| Clear     | `GPIOA->ODR &= ~(1U << 5);` | Force PA5 to `0`  |
+| Toggle    | `GPIOA->ODR ^= (1U << 5);`  | Flip PA5          |
+
+### Key Insights
+
+- **OR (`|`)** with a mask sets the selected bit while leaving all other bits unchanged
+- **AND (`&`)** with an inverted mask (`~mask`) clears the selected bit while leaving all other bits unchanged
+- **XOR (`^`)** with a mask toggles the selected bit while leaving all other bits unchanged
