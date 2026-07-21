@@ -1170,3 +1170,136 @@ Because internally the CPU conceptually does:
 ```
 
 We will explore this more later when we discuss register operations.
+
+## Clearing a GPIO Pin (Writing LOW)
+
+We already know how to set PA5:
+
+```c
+GPIOA->ODR |= (1U << 5);
+```
+
+Now we want to clear PA5. The code is:
+
+```c
+GPIOA->ODR &= ~(1U << 5);
+```
+
+We'll first understand only this part: `~(1U << 5)`
+
+### Step 1: `1U << 5`
+
+```
+Bit: 7 6 5 4 3 2 1 0
+     0 0 1 0 0 0 0 0
+           ↑
+          PA5 (only PA5 is 1)
+```
+
+### Step 2: Apply ~ (Bitwise NOT)
+
+The `~` operator flips every bit.
+
+**Before:**
+```
+0010 0000
+```
+
+**After:**
+```
+1101 1111
+```
+
+Notice what happened:
+- PA5 became 0
+- Every other bit became 1
+
+**Visualized:**
+
+Before NOT operation:
+```
+Bit: 7 6 5 4 3 2 1 0
+     0 0 1 0 0 0 0 0
+           ↑
+          PA5
+```
+
+After NOT operation:
+```
+Bit: 7 6 5 4 3 2 1 0
+     1 1 0 1 1 1 1 1
+           ↑
+          PA5
+```
+
+Basically:
+- `1U << 5` creates `0010 0000`
+- `~(1U << 5)` creates `1101 1111`
+
+### Why Create a Mask with All 1s Except PA5?
+
+Suppose the current register is:
+
+```
+0000 0000 0010 1100
+```
+
+This means:
+- PA5 = 1
+- PA3 = 1
+- PA2 = 1
+
+Our mask is: `~(1U << 5)`, which (showing 8 bits for simplicity) is: `1101 1111`
+
+Now perform an AND (`&`) operation:
+
+```
+Register:    0010 1100
+Mask:        1101 1111
+             ----------
+Result:      0000 1100
+```
+
+Changes:
+- PA5 changed from 1 → 0
+- PA3 stayed 1
+- PA2 stayed 1
+- Everything else stayed exactly as it was
+
+### Why Does This Work?
+
+The AND (`&`) operator follows a simple rule:
+
+| Register Bit | Mask Bit | Result |
+| ------------ | -------- | ------ |
+| 0            | 1        | 0      |
+| 1            | 1        | 1      |
+| 0            | 0        | 0      |
+| 1            | 0        | 0      |
+
+Key observations:
+- **AND with 1** keeps the original value unchanged
+- **AND with 0** forces the result to 0
+
+That's why we build the mask with all 1s except for the bit we want to clear:
+
+```
+1101 1111
+```
+
+Every bit is 1 except the one we want to clear.
+
+### The Complete Operation
+
+```c
+GPIOA->ODR &= ~(1U << 5);
+```
+
+Conceptually, this means:
+
+1. Create a mask with only PA5 as 0
+2. Read the current register
+3. AND the register with the mask
+4. Write the result back
+
+**Result:** PA5 is cleared, while every other pin keeps its previous state.
