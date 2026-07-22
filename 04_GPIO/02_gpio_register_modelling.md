@@ -1498,3 +1498,81 @@ x
 
 x remains unchanged.
 
+## Write a complete register :
+
+Earlier, we wrote one pin: ODR->bits.PA5 = 1; to set only PA5 HIGH.
+
+Now let's look at: ODR->value = 0x00000020;
+
+Notice the difference. Here we're not accessing bits.
+We're accessing:
+
+ODR->value
+
+which represents the entire 32-bit register.
+
+Suppose the register initially contains
+Bit15                     Bit0
+
+0000 0000 0000 1000
+This means:
+
+PA3 = HIGH. All other pins = LOW
+
+Now execute: ODR->value = 0x00000020;
+
+Remember: 0x20 = 32 decimal
+
+Binary:
+
+0000 0000 0010 0000
+
+So after the write, the register becomes:
+0000 0000 0010 0000
+
+Notice what happened:
+
+Before:
+
+PA5 = 0
+PA3 = 1
+
+After:
+
+PA5 = 1
+PA3 = 0
+
+The important difference
+
+When you write: ODR->bits.PA5 = 1; we are changing one bit (conceptually).
+
+When you write: ODR->value = 0x00000020; we are replacing the entire 32-bit register with a new value.
+
+Think of it this way
+Bit-field access
+Register
+
+0000 1000
+
+       ↓
+
+Change only PA5
+
+       ↓
+
+0010 1000
+Whole-register access
+Register
+
+0000 1000
+
+       ↓
+
+Write new value
+
+0010 0000
+
+The old contents are completely replaced.
+
+This is why writing the entire register is very powerful—but also something we must use carefully. If another pin was HIGH and we didn't include it in the new value, it will become LOW.
+
