@@ -1576,3 +1576,61 @@ The old contents are completely replaced.
 
 This is why writing the entire register is very powerful—but also something we must use carefully. If another pin was HIGH and we didn't include it in the new value, it will become LOW.
 
+## Toggle the complete register :
+
+So far, we have toggled one pin: GPIOA->ODR ^= (1U << 5); This flips only PA5.
+
+Now suppose we want to toggle every GPIO pin at the same time. Instead of using a mask with one bit set, we use a value where all GPIO bits are 1.
+
+For GPIOA, only bits 0–15 are GPIO pins.
+
+So the mask is: 0x0000FFFF
+
+Binary:
+0000 0000 0000 0000 1111 1111 1111 1111
+
+Notice:
+
+Bits 0–15 = 1
+Bits 16–31 = 0 (reserved bits are left unchanged)
+
+ODR->value ^= 0x0000FFFF; What does it do?
+
+Suppose the register initially contains:
+
+0000 0000 0000 0000 0000 0000 0010 0101
+
+This means:
+
+PA5 = 1
+PA2 = 1
+PA0 = 1
+
+Now XOR with:
+
+0000 0000 0000 0000 1111 1111 1111 1111
+
+The result is:
+0000 0000 0000 0000 1111 1111 1101 1010
+
+Let's verify the lower 8 bits:
+
+Original : 0010 0101
+Mask     : 1111 1111
+--------------------
+Result   : 1101 1010
+
+Every GPIO bit has flipped.
+
+Why 0x0000FFFF and not 0xFFFFFFFF?
+
+This is an important STM32-specific point.
+
+From the reference manual:
+
+Bits 0–15 → GPIO output pins
+Bits 16–31 → Reserved
+
+We should not intentionally modify reserved bits.
+
+So this is preferred: ODR->value ^= 0x0000FFFF; rather than ODR->value ^= 0xFFFFFFFF; because it leaves the reserved bits unchanged.
