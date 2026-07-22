@@ -1360,3 +1360,141 @@ The XOR rule:
 - **OR (`|`)** with a mask sets the selected bit while leaving all other bits unchanged
 - **AND (`&`)** with an inverted mask (`~mask`) clears the selected bit while leaving all other bits unchanged
 - **XOR (`^`)** with a mask toggles the selected bit while leaving all other bits unchanged
+
+
+## Read the Complete Register :
+Until now, we've been reading one pin.
+
+Example: GPIOA_IDR->bits.PA0
+
+This returns only one bit:
+0 → LOW
+1 → HIGH
+
+Now suppose instead of reading just PA0, you want to know the state of all 16 GPIO pins at once.
+
+Remember your union:
+
+union GPIO_IDR_REGISTER
+{
+    unsigned int value;
+    struct GPIO_IDR_BITS bits;
+};
+
+This gives you two views of the same register:
+
+**View 1: Individual pins**
+IDR->bits.PA0
+IDR->bits.PA1
+IDR->bits.PA2
+
+Each accesses one bit.
+
+**View 2: Entire register**
+IDR->value
+This accesses the entire 32-bit register in one operation.
+
+Example : 
+
+Suppose the hardware register contains:
+
+Bit15                     Bit0
+
+0000 0000 0010 0101
+
+Then: IDR->value returns: 0000 0000 0010 0101 as a single 32-bit unsigned integer.
+
+Suppose the register contains: 0000 0000 0010 0101 Which pins are HIGH?  Pin 0, pin 2 and pin 5 are HIGH
+
+Now let's connect this to our union.
+
+We have:
+
+union GPIO_IDR_REGISTER
+{
+    unsigned int value;
+    struct GPIO_IDR_BITS bits;
+};
+
+Suppose:
+
+unsigned int x = IDR->value; and the register contains: 0000 0000 0010 0101
+
+Then after executing: unsigned int x = IDR->value;
+
+conceptually:
+
+Hardware Register (GPIOA_IDR)
+
+0000 0000 0010 0101
+         │
+         │ Read whole register
+         ▼
+x
+
+0000 0000 0010 0101
+
+Now x is an ordinary C variable stored in RAM.
+
+Notice the difference:
+
+IDR->value → hardware register
+x → normal RAM variable
+
+From this point onward, if the hardware changes the register, x does not automatically change because it is just a copy.
+
+Suppose: unsigned int x = IDR->value;
+
+At that moment: IDR = 0000 0000 0010 0101
+
+A moment later, the user presses another button and the hardware changes the register to: 0000 0000 0010 0111
+
+What is the value of x now? Will x also become 0000 0000 0010 0111 or will it remain 0000 0000 0010 0101 ?
+
+Suppose we do: unsigned int x = IDR->value;
+
+Imagine the hardware register contains:
+
+0000 0000 0010 0101
+
+The CPU performs one read:
+
+Hardware Register
+        │
+        ▼
+Read value
+        │
+        ▼
+Copy into x
+
+Now memory looks like:
+
+Hardware Register
+
+0000 0000 0010 0101
+
+
+RAM
+
+x
+
+0000 0000 0010 0101
+
+These are now two separate places.
+
+If the hardware later changes the register:
+
+Hardware Register
+
+0000 0000 0010 0111
+
+then:
+
+RAM
+
+x
+
+0000 0000 0010 0101
+
+x remains unchanged.
+
