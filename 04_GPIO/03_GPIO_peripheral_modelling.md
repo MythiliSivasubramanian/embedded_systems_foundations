@@ -14,7 +14,7 @@ But in STM32, GPIO is not just one register. A GPIO peripheral contains multiple
 
 The goal of this chapter is to model the **entire GPIO peripheral**, not just one register.
 
-Once we understand one GPIO peripheral (GPIOA), the same model can be reused for GPIOB through GPIOI because they all share the same register layout.
+Once we understand one GPIO peripheral (GPIOA), the same structure can be reused for GPIOB through GPIOI because they all share the same register layout.
 So until now, we have been working with individual registers: GPIOA_ODR and GPIOA_IDR.
 
 But in reality, GPIOA is a peripheral that contains many registers.
@@ -87,7 +87,8 @@ Exactly the same formula we used for registers: ***Register address = Peripheral
 ## 3. Connecting C Structures with Hardware Register Maps :
 
 Now let's connect this idea to GPIO.
-The STM32 reference manual says: GPIOA Base Address = 0x40020000
+The STM32 reference manual provides the GPIO peripheral base addresses. For STM32F407VG, GPIOA base address is 0x40020000.
+
 
 Inside GPIOA:
 
@@ -99,13 +100,16 @@ Offset  Register
 0x0C    PUPDR
 0x10    IDR
 0x14    ODR
+0x18    BSRR
+0x1C    LCKR
+0x20    AFRL
+0x24    AFRH
 
 This is already a structure layout.
 
 The hardware is effectively: GPIOA base = 0x40020000
 
 GPIOA base = 0x40020000
-
 
 Address          Register
 
@@ -115,6 +119,10 @@ Address          Register
 0x4002000C       PUPDR
 0x40020010       IDR
 0x40020014       ODR
+0x40020018       BSRR
+0x4002001C       LCKR
+0x40020020       AFRL
+0x40020024       AFRH
 
 
 Now we want C to understand this.
@@ -129,8 +137,15 @@ struct GPIO_TypeDef
     volatile unsigned int PUPDR;
     volatile unsigned int IDR;
     volatile unsigned int ODR;
+    volatile unsigned int BSRR;
+    volatile unsigned int LCKR;
+    volatile unsigned int AFRL;
+    volatile unsigned int AFRH;
+    
 };
 ```
+The volatile keyword tells the compiler that these memory locations can change outside normal program flow because they are hardware registers. Therefore, the compiler must always perform actual memory reads and writes.
+
 
 The compiler creates:
 ```
@@ -142,11 +157,34 @@ Offset
 0x0C   PUPDR
 0x10   IDR
 0x14   ODR
+0x18   BSRR
+0x1C   LCKR
+0x20   AFRL
+0x24   AFRH
+
 ```
+
+Real STM32 register maps sometimes have gaps:
+
+Example:
+
+Offset 0x00 Register A
+Offset 0x04 Register B
+Offset 0x0C Register C
+
+Then the structure needs: uint32_t RESERVED; to maintain correct offsets.
+For GPIO currently we don't need it because the registers are here continuous.
 
 The compiler calculates the offsets based on:
 -   order of members
 -   size of each members
+
+### Important: Structure Alignment
+
+The compiler may insert padding bytes inside structures for alignment.
+For hardware register mapping, we must ensure the structure layout exactly matches the hardware layout.
+
+In STM32 register maps, registers are normally aligned to 32-bit boundaries, so using 32-bit members (`unsigned int` or `uint32_t`) naturally creates the required offsets.
 
 Result:
 
@@ -158,6 +196,10 @@ Offset
 0x0C   PUPDR
 0x10   IDR
 0x14   ODR
+0x18   BSRR
+0x1C   LCKR
+0x20   AFRL
+0x24   AFRH
 
 The C structure now matches the hardware register map.
 
@@ -165,7 +207,7 @@ The C structure now matches the hardware register map.
 Consider:
 
 ```c
-struct GPIO_TypeDef *ptr = (struct GPIO_TypeDef *)0x20000000;
+struct GPIO_TypeDef *ptr  = (struct GPIO_TypeDef *)0x20000000;
 ````
 The pointer stores:
 
@@ -187,10 +229,11 @@ GPIOA->ODR
 ```
 GPIOA base address + ODR offset = ODR register address
 
-## 4. How GPIOA->ODR Works Internally :
+## 4. How GPIOA->ODR Works Internally 
+
 Later we create:
 ```C
-GPIO_TypeDef *GPIOA = (GPIO_TypeDef *)0x40020000;
+struct GPIO_TypeDef *GPIOA = (struct GPIO_TypeDef *)0x40020000;
 ````
 
 The pointer stores:
@@ -211,7 +254,12 @@ The structure does not store copies of registers. It only describes the layout.
 The pointer connects the structure to the real hardware address.
 The CPU writes to the memory address mapped to the hardware register.
 
-## 5. Finding GPIO Information from STM32 Documentation :
+Basically, the structure only defines the layout. Memory is not allocated for the registers because the pointer directly points to the peripheral memory address.
+
+Now that we understand how a C structure can represent a peripheral,
+the next question is: how do we get the information needed to create this structure?
+
+## 5. Finding GPIO Information from STM32 Documentation 
 
 For any STM32 microcontroller, we need two official documents:
 
@@ -245,8 +293,8 @@ PC0, PC1, ...
 ...
 PI0, PI1, ...
 
-Therefore, the STM32F407VG MCU provides GPIO ports:
-GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF, GPIOG, GPIOH, GPIOI
+Therefore, the STM32F407VG MCU provides GPIO peripherals:
+GPIOA, GPIOB, GPIOC, GPIOD, GPIOE, GPIOF, GPIOG, GPIOH and GPIOI.
 
 We verify this from the available GPIO pins in the pin definition table.
 
@@ -327,9 +375,9 @@ The STM32F407VG contains the following GPIO peripherals:
 
 Here, every GPIO peripheral has the same register layout. The only thing that changes is the base address. This is why a single GPIO structure can represent GPIOA, GPIOB, GPIOC, etc. Only the pointer address changes.
 
-## 7. Reusing One Structure for Multiple GPIO Ports:
+## 7. Same Register Layout, Different Peripheral Instance
 
-Every GPIO peripheral (GPIOA, GPIOB, ..., GPIOI) contains the same registers.
+Every GPIO peripheral (GPIOA, GPIOB, ..., GPIOI) contains the same registers. The register offsets remain identical for every GPIO peripheral. Only the base address changes.
 
 | Offset | Register | Purpose                                                           |
 | ------ | -------- | ----------------------------------------------------------------- |
@@ -384,12 +432,22 @@ We create one GPIO_TypeDef structure. The base address decides which GPIO periph
 Example:
 
 ```c
-GPIO_TypeDef *GPIOA = (struct GPIO_TypeDef *)0x40020000;
+struct GPIO_TypeDef *GPIOA = (struct GPIO_TypeDef *)0x40020000;
 
-GPIO_TypeDef *GPIOB = (struct GPIO_TypeDef *)0x40020400;
+struct GPIO_TypeDef *GPIOB = (struct GPIO_TypeDef *)0x40020400;
 ```
 
 Same structure but Different hardware. The structure definition represents the register layout, while the pointer represents the actual GPIO peripheral instance.
+
+```c
+#define GPIOA ((struct GPIO_TypeDef *)0x40020000)
+````
+Then 
+```c
+GPIOA->ODR = 1;
+``` becomes  0x40020000 + 0x14 = 0x40020014
+
+
 
 ## Key Takeaways
 
