@@ -113,3 +113,52 @@ At this point:
 * No memory has been allocated.
 
 ---
+
+# 3. Type vs Object
+
+This is one of the most important concepts in C.
+
+After writing:
+
+```c
+typedef struct
+{
+    int age;
+    int marks;
+} Student;
+```
+
+The compiler knows that a type called `Student` exists.
+
+Now we create an object:
+
+```c
+Student s1;
+```
+
+Now memory is allocated.
+
+Conceptually:
+
+```text
+Memory
+
+s1
+
++---------+
+| age     |
++---------+
+| marks   |
++---------+
+```
+
+Therefore,
+
+* `Student` → Type
+* `s1` → Object (variable)
+
+The object occupies memory.
+The type does not.
+
+---
+
