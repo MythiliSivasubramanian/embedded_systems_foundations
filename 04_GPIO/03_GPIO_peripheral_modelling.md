@@ -20,9 +20,16 @@
    - [9.4 Toggle a Single Pin](#94-toggle-a-single-pin)
 10. [BSRR Register](#10-bsrr-register)
     - [Why ODR Read-Modify-Write is risky](#why-odr-read-modify-write-is-risky)
+    - [BSRR Register Layout](#bsrr-register-layout)
     - [Bit Set operation](#bit-set-operation)
     - [Bit Reset operation](#bit-reset-operation)
-    - [Atomic GPIO control](#atomic-gpio-control)
+    - [Atomic GPIO control comparison](#atomic-gpio-control-comparison)
+    - [Case 1: Set a Single Pin (e.g., PA5 HIGH)](#case-1-set-a-single-pin-eg-pa5-high)
+    - [Case 2: Reset a Single Pin (e.g., PA5 LOW)](#case-2-reset-a-single-pin-eg-pa5-low)
+    - [Case 3: Set Multiple Pins (e.g., PA1, PA3, PA5 HIGH)](#case-3-set-multiple-pins-eg-pa1-pa3-pa5-high)
+    - [Case 4: Reset Multiple Pins (e.g., PA1, PA3, PA5 LOW)](#case-4-reset-multiple-pins-eg-pa1-pa3-pa5-low)
+    - [Case 5: Set and Reset ONE Pin in the Same Command (Collision Edge-Case)](#case-5-set-and-reset-one-pin-in-the-same-command-collision-edge-case)
+    - [Case 6: Set Some Pins and Reset Other Pins Simultaneously](#case-6-set-some-pins-and-reset-other-pins-simultaneously)
 11. [Key Takeaways](#11-key-takeaways)
 
 ---
@@ -1422,6 +1429,204 @@ int main(void)
 
     // Reset PB5 LOW
     GPIOB->BSRR = (1U << (5 + 16));
+
+    return 0;
+}
+
+```
+
+---
+Now that we see how we can set and reset a pin using BSRR, let's drive down to see all the different ways we can manipulate GPIO state using this register.
+Below are all **6 precise use cases** of BSRR, showing the C implementation along with the exact 32-bit register layout in binary for each.
+
+---
+
+### Case 1: Set a Single Pin (e.g., PA5 HIGH)
+
+To set PA5 HIGH, send `1` to **Bit 5** ($S5$).
+
+```c
+GPIOA->BSRR = (1U << 5);
+
+```
+
+```text
+Bit 31                                 Bit 5          Bit 0
+  │                                      │              │
+  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1 0 0 0 0 0 0 0
+
+```
+
+* **Result:** PA5 goes **HIGH**. All other pins stay unchanged.
+
+---
+
+### Case 2: Reset a Single Pin (e.g., PA5 LOW)
+
+To reset PA5 LOW, send `1` to **Bit 21** ($R5$, which is $5 + 16$).
+
+```c
+GPIOA->BSRR = (1U << (5 + 16)); // or (1U << 21)
+
+```
+
+```text
+Bit 31               Bit 21                    Bit 0
+  │                    │                         │
+  0 0 0 0 0 0 0 0 0 0  1  0 0 0 0 0 0 0 0 0 0 0 0 0
+
+```
+
+* **Result:** PA5 goes **LOW**. All other pins stay unchanged.
+
+---
+
+### Case 3: Set Multiple Pins (e.g., PA1, PA3, PA5 HIGH)
+
+Combine them using bitwise OR (`|`) in the lower half (Bits 0–15).
+
+```c
+GPIOA->BSRR = (1U << 1) | (1U << 3) | (1U << 5);
+
+```
+
+```text
+Bit 31                               Bit 5   Bit 3   Bit 1  Bit 0
+  │                                    │       │       │      │
+  0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 1   0   1   0   1   0
+
+```
+
+* **Result:** PA1, PA3, and PA5 go **HIGH** at the exact same instant.
+
+---
+
+### Case 4: Reset Multiple Pins (e.g., PA1, PA3, PA5 LOW)
+
+Combine them using bitwise OR (`|`) in the upper half (Bits 16–31).
+
+* Pin 1 Reset = Bit $1 + 16 = \text{Bit } 17$
+* Pin 3 Reset = Bit $3 + 16 = \text{Bit } 19$
+* Pin 5 Reset = Bit $5 + 16 = \text{Bit } 21$
+
+```c
+GPIOA->BSRR = (1U << 17) | (1U << 19) | (1U << 21);
+
+```
+
+```text
+Bit 31       Bit 21  Bit 19  Bit 17                         Bit 0
+  │            │       │       │                              │
+  0 0 0 0 0 0  1   0   1   0   1   0 0 0 0 0 0 0 0 0 0 0 0 0 0
+
+```
+
+* **Result:** PA1, PA3, and PA5 go **LOW** at the exact same instant.
+
+---
+
+### Case 5: Set and Reset ONE Pin in the Same Command (Collision Edge-Case)
+
+What if we accidentally write a `1` to both Set ($S5$) and Reset ($R5$) for PA5 at the same time?
+
+```c
+GPIOA->BSRR = (1U << 5) | (1U << 21);
+
+```
+
+```text
+Bit 31               Bit 21                  Bit 5          Bit 0
+  │                    │                       │              │
+  0 0 0 0 0 0 0 0 0 0  1  0 0 0 0 0 0 0 0 0 0  1  0 0 0 0 0 0 0
+
+```
+
+* **STM32 Hardware Priority Rule:** According to the reference manual, if both **BSx** and **BRx** are set for the same pin, **Bit Set (BSx) takes priority**.
+* **Result:** PA5 goes **HIGH**.
+
+---
+
+### Case 6: Simultaneous Set and Reset of Different Pins (Atomic Parallel Control)
+
+Set PA0 and PA2 **HIGH**, while pulling PA1 and PA3 **LOW** simultaneously in a single clock cycle.
+
+* Set Pins: Bit 0 ($S0$), Bit 2 ($S2$)
+* Reset Pins: Bit 17 ($R1 = 1 + 16$), Bit 19 ($R3 = 3 + 16$)
+
+```c
+GPIOA->BSRR = (1U << 0) | (1U << 2) | (1U << 17) | (1U << 19);
+
+```
+
+```text
+Bit 31       Bit 19  Bit 17                         Bit 2 Bit 0
+  │            │       │                              │     │
+  0 0 0 0 0 0  1   0   1   0 0 0 0 0 0 0 0 0 0 0 0 0  1  0  1
+
+```
+
+* **Result:** PA0 and PA2 switch **HIGH**, and PA1 and PA3 switch **LOW** at the exact same physical instant. This is incredibly useful for driving parallel buses (e.g., LCD lines).
+
+---
+
+### Complete Code Example for All BSRR Use Cases
+
+Below is the complete executable-style C code illustrating all 6 use cases of the BSRR register inside a standard peripheral context:
+
+```c
+/*
+  03_gpio_bsrr_all_use_cases.c
+  Complete demonstration of all 6 BSRR operations on STM32 GPIO
+*/
+
+#include <stdint.h>
+
+typedef struct
+{
+    volatile uint32_t MODER;      
+    volatile uint32_t OTYPER;     
+    volatile uint32_t OSPEEDR;    
+    volatile uint32_t PUPDR;      
+    volatile uint32_t IDR;        
+    volatile uint32_t ODR;        
+    volatile uint32_t BSRR;       
+    volatile uint32_t LCKR;       
+    volatile uint32_t AFRL;       
+    volatile uint32_t AFRH;       
+} GPIO_TypeDef;
+
+#define GPIOA ((GPIO_TypeDef *) 0x40020000U)
+
+int main(void)
+{
+    /* Use Case 1: Set a Single Pin HIGH */
+    // Atomic set PA5 to 1
+    GPIOA->BSRR = (1U << 5);
+
+    /* Use Case 2: Reset a Single Pin LOW */
+    // Atomic reset PA5 to 0 (Pin 5 + 16 offset = Bit 21)
+    GPIOA->BSRR = (1U << (5 + 16));
+
+    /* Use Case 3: Set Multiple Pins HIGH simultaneously */
+    // Sets PA1, PA3, and PA5 to 1 in a single write operation
+    GPIOA->BSRR = (1U << 1) | (1U << 3) | (1U << 5);
+
+    /* Use Case 4: Reset Multiple Pins LOW simultaneously */
+    // Resets PA1, PA3, and PA5 to 0 (Bits 17, 19, and 21)
+    GPIOA->BSRR = (1U << (1 + 16)) | (1U << (3 + 16)) | (1U << (5 + 16));
+
+    /* Use Case 5: Collision handling (Set and Reset target the SAME pin) */
+    // Hardware resolves conflict by prioritizing Set over Reset -> PA5 goes HIGH
+    GPIOA->BSRR = (1U << 5) | (1U << (5 + 16));
+
+    /* Use Case 6: Parallel control (Set some pins while Resetting others) */
+    // Sets PA0 & PA2 HIGH while resetting PA1 & PA3 LOW at the exact same instant
+    GPIOA->BSRR = (1U << 0) | (1U << 2) | (1U << (1 + 16)) | (1U << (3 + 16));
+
+    while (1)
+    {
+        // Application loop
+    }
 
     return 0;
 }
