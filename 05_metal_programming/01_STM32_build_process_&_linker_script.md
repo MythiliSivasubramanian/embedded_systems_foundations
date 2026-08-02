@@ -242,3 +242,276 @@ main.o
 * Where the stack should be placed
 
 ---
+ 
+ ## The Linker
+
+The compiler created organized pieces. But when we have multiple files, each file has these sections individually.
+
+Imagine we have:
+
+`main.o`
+
+* `.text`
+* `.data`
+* `.rodata`
+* `.bss`
+
+And another file: `gpio.o`
+
+* `.text`
+* `.data`
+* `.bss`
+
+And another: `uart.o`
+
+* `.text`
+* `.data`
+
+Now the linker receives three object files (`main.o`, `gpio.o`, `uart.o`) and each file has their own sections (`.text`, `.bss`, `.data`, `.rodata`).
+
+So the linker has to merge all these sections from multiple files and place them in the final MCU memory.
+
+For example:
+
+```text
+FLASH
+0x08000000
+ │
+ ├── .text
+ │
+ └── .rodata
+
+RAM
+0x20000000
+ │
+ ├── .data
+ │
+ └── .bss
+
+```
+
+But the linker cannot guess. It needs instructions. Those instructions come from: **The Linker Script**.
+
+---
+
+## The Linker Script & Startup Code
+
+The linker script is also responsible for creating information needed by startup code.
+
+For example, the **Reset Handler** needs to know:
+
+* Where does `.data` start in RAM?
+* Where is the initial `.data` image in Flash?
+* How big is `.data`?
+* Where does `.bss` start?
+* Where does `.bss` end?
+
+The linker script creates symbols like:
+
+* `_data_start`
+* `_data_end`
+* `_data_load`
+* `_bss_start`
+* `_bss_end`
+
+Then the Reset Handler uses those addresses.
+
+```text
+C file ----> compiler ---> Object file (.o) -----------------------------> Linker + linker script ------------------> final one ELF
+                                │Contains sections but no MCU address           │ multiple object files as input            │ contains 
+                                 .text                                                                                      .text  → Flash address
+                                 .data                                                                                      .data  → RAM address
+                                 .rodata                                                                                    .bss   → RAM address
+                                 .bss                                                                                           
+
+```
+
+**What exactly is inside an object file (`.o`)?**
+
+Because when we write:
+
+```c
+int global = 10; 
+
+```
+
+How does the compiler decide that this variable belongs to `.data`? And when we write:
+
+```c
+const int MAX = 100;
+
+```
+
+Why does it go to `.rodata`? It is based on the C language rules.
+
+The compiler classifies variables based on: Scope, Initialization, and the `const` qualifier.
+
+---
+
+For this code:
+
+```c
+int global = 10;
+
+const int MAX = 100;
+
+int main(void)
+{
+}
+
+```
+
+The compiler creates three things:
+
+1. Machine instructions for `main()`
+2. Initial value `10`
+3. Constant value `100`
+
+---
+
+The compiler creates the sections: `.text`, `.data`, `.bss`, `.rodata`. But the compiler does not know the final memory addresses.
+
+### Example:
+
+```c
+int global1 = 10;
+
+int global2;
+
+const int MAX = 100;
+
+int main(void)
+{
+    int local = 20;
+}
+
+```
+
+The compiler analyzes this and creates an object file `main.o`. Inside this object file, it has sections (all without any address):
+
+```text
+main.o
+
+.text
+ │
+ └── machine instructions of main()
+
+.data
+ │
+ └── global1 = 10
+
+.bss
+ │
+ └── global2
+
+.rodata
+ │
+ └── MAX = 100
+
+```
+
+## Who Assigns Addresses?
+
+**The Linker.**
+
+The linker uses a special file: **The Linker Script**.
+The linker script tells it:
+
+* FLASH starts at `0x08000000`
+* RAM starts at `0x20000000`
+
+Then it places sections:
+
+```text
+FLASH
+0x08000000
+ │
+ +----------------+
+ | .text          |
+ | main() code    |
+ +----------------+
+ |
+ +----------------+
+ | .rodata        |
+ | MAX = 100      |
+ +----------------+
+ |
+ +----------------+
+ | .data image    |
+ | global1 = 10   |
+ +----------------+
+
+
+RAM
+0x20000000
+ │
+ +----------------+
+ | .data          |
+ | global1        |
+ +----------------+
+ |
+ +----------------+
+ | .bss           |
+ | global2        |
+ +----------------+
+ |
+ +----------------+
+ | Stack          |
+ +----------------+
+
+```
+
+---
+
+## The Complete Picture
+
+```text
+                  C Compiler
+                     │
+                     ▼
+              Creates sections
+
+        +----------------------+
+        | main.o               |
+        +----------------------+
+        | .text                |
+        | .data                |
+        | .bss                 |
+        | .rodata              |
+        +----------------------+
+
+                 Linker
+                     │
+                     ▼
+              Linker Script
+                     │
+                     ▼
+
+        +----------------------+
+        | Final Memory Map     |
+        +----------------------+
+
+FLASH
+0x08000000
+.text
+.rodata
+.data initial values
+
+RAM
+0x20000000
+.data
+.bss
+stack
+heap
+
+```
+
+### Notes Summary:
+
+1. Compiler creates sections.
+2. Compiler decides what belongs in each section.
+3. Compiler does not assign addresses.
+4. Linker assigns addresses using the linker script.
+5. Startup code moves `.data` from Flash -> RAM and clears `.bss`.
+
+---
