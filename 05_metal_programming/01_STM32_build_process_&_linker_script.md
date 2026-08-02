@@ -515,3 +515,281 @@ heap
 5. Startup code moves `.data` from Flash -> RAM and clears `.bss`.
 
 ---
+
+# Writing Our Own Memory Layout for STM32
+
+```text
+Power ON
+    │
+    ▼
+Flash and RAM exist
+    │
+    ▼
+Compiler creates sections
+    │
+    ▼
+Linker places sections into memory
+    │
+    ▼
+Reset Handler runs
+    │
+    ▼
+.data copied to RAM
+.bss cleared
+    │
+    ▼
+main()
+
+```
+
+Imagine **STM32F407VG**. We already know:
+
+* **Flash** starts at `0x08000000`
+* **RAM** starts at `0x20000000`
+
+The linker script does not create `.text`. The compiler already did that. The linker script simply says where to place these sections.
+
+---
+
+## Declaring MCU Memory to the Linker Script
+
+How does the linker script know how much Flash and RAM the MCU has?
+
+For example, our STM32F407VG has:
+
+* **Flash:** 1 MB
+* **RAM:** 128 KB
+
+How does the linker know this? Inside the linker script, the very first thing we usually write is the memory layout of the MCU:
+
+```ld
+MEMORY
+{
+    FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 1024K
+    RAM   (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+}
+
+```
+
+`FLASH(rx)`. This is simply a name. It could technically be `PROGRAM_MEMORY` or `ABC`—the linker doesn't care. But everyone calls it `FLASH` because that's what it represents. `ORIGIN = 0x08000000` represents that flash begins here: `0x08000000`. Exactly the same address from the STM32 reference manual. `LENGTH = 1024K` meaning Flash size is 1024 KB. Exactly what the datasheet tells us. Similarly for RAM.
+
+---
+
+It now builds a mental picture like this:
+
+```text
+                STM32F407VG Memory
+
+Flash
+0x08000000
++----------------------------------+
+|                                  |
+|                                  |
+|                                  |
+|                                  |
++----------------------------------+
+          1024 KB
+
+
+RAM
+0x20000000
++----------------------------------+
+|                                  |
+|                                  |
+|                                  |
+|                                  |
++----------------------------------+
+           128 KB
+
+```
+
+We still haven't placed `.text` or `.data`. We've only told the linker about the available memories. Only after this does the linker know where it is allowed to place sections.
+
+---
+
+## The SECTIONS Block in Linker Script
+
+Think of the linker script as having two major parts:
+
+```text
+Linker Script
+ │
+ ├── MEMORY
+ │     │
+ │     └── What memories exist?
+ │
+ └── SECTIONS
+       │
+       └── Which section goes into which memory?
+
+```
+Suppose we write:
+
+* `.text` -> FLASH
+* `.rodata` -> FLASH
+* `.data` -> RAM
+* `.bss` -> RAM
+
+Now it can build the final executable.
+
+---
+
+## The Complete Flow
+
+This is one of the most important diagrams in embedded systems:
+
+```text
+                 C Source Files
+                        │
+                        ▼
+                  Compiler
+                        │
+                        ▼
+              Object Files (.o)
+
+        .text
+        .data
+        .bss
+        .rodata
+
+                        │
+                        ▼
+               Linker + Linker Script
+                        │
+          ┌─────────────┴─────────────┐
+          │                           │
+     MEMORY Block              SECTIONS Block
+  What memory exists?       Where does each section go?
+          │                           │
+          └─────────────┬─────────────┘
+                        │
+                        ▼
+                 Final ELF File
+                        │
+                        ▼
+              Ready to be programmed
+              into the STM32 Flash
+
+```
+
+---
+
+## A Real Linker Script
+
+A simplified STM32 linker script looks like this:
+
+```ld
+MEMORY
+{
+    FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 1024K
+    RAM   (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+}
+
+SECTIONS
+{
+    .text :
+    {
+        *(.text)
+    } > FLASH
+
+    .rodata :
+    {
+        *(.rodata)
+    } > FLASH
+
+    .data :
+    {
+        *(.data)
+    } > RAM
+
+    .bss :
+    {
+        *(.bss)
+    } > RAM
+}
+
+```
+
+### What is SECTIONS?
+
+Think of it like this:
+
+```text
+MEMORY
+========
+Available memories
+- FLASH
+- RAM
+
+
+SECTIONS
+========
+- .text    → FLASH
+- .rodata  → FLASH
+- .data    → RAM
+- .bss     → RAM
+
+```
+
+Notice the difference:
+
+* **`MEMORY`** = What memories exist?
+* **`SECTIONS`** = Where should each section go?
+
+The linker script is referring to the compiler's `.text` section.
+
+---
+
+#### What does `*(.text)` mean?
+
+Imagine our project has three C files: `main.c`, `gpio.c`, and `uart.c`.
+
+After compilation we get: `main.o`, `gpio.o`, and `uart.o`.
+
+Each object file contains its own `.text` section:
+
+```text
+main.o  -----\
+              \
+gpio.o  -------> Final .text
+              /
+uart.o  -----/
+
+```
+
+So `*(.text)` is basically telling the linker to take every `.text` section from EVERY object file (`*`) and put them together here.
+
+What does `> FLASH` mean? `FLASH` is simply the memory name we defined earlier in the `MEMORY` block.
+
+So:
+
+```ld
+.text :
+{
+    *(.text)
+} > FLASH
+
+```
+Place the final combined `.text` section into the memory region called `FLASH`.
+
+---
+The linker never opens our C source files. It never looks at:
+
+```c
+int main(void)
+{
+}
+
+```
+
+or
+
+```c
+void GPIO_Init(void)
+{
+}
+
+```
+
+It only works with object files: `main.o`, `gpio.o`, `uart.o`, `timer.o`.
+```
