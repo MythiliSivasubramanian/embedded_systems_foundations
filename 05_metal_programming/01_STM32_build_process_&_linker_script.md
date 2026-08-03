@@ -792,4 +792,348 @@ void GPIO_Init(void)
 ```
 
 It only works with object files: `main.o`, `gpio.o`, `uart.o`, `timer.o`.
+
+### Summary of Compiler Output vs. Linker Script Responsibilities
+
+So the compiler creates sections:
+
+* `.text` ->  Machine code instructions
+* `.rodata`  ->  Constants / read-only data
+* `.data`  ->  Initialized global & static variables (initial values)
+* `.bss`  ->  Uninitialized global & static variables
+
+The Linker Script:
+
+* Defines available memories (`MEMORY`)
+* Decides where sections should finally live (`SECTIONS`)
+* Combines all input sections from multiple `.o` files into final output sections
+
+---
+
+## 1. The SECTIONS Block
+
+A simplified linker script:
+
+```ld
+SECTIONS
+{
+    .text :
+    {
+        *(.text)
+    } > FLASH
+
+    .data :
+    {
+        *(.data)
+    } > RAM
+
+    .bss :
+    {
+        *(.bss)
+    } > RAM
+}
+
 ```
+
+Now we have given explicit instructions to the linker.
+
+### `.text` Placement
+
+```ld
+.text :
+{
+    *(.text)
+} > FLASH
+
+```
+
+This tells the linker to take all input `.text` sections from all compiled object files and combine them into the final `.text` section located in FLASH.
+
+#### Before linking:
+
+Multiple `.o` files, each containing individual sections:
+
+```text
+main.o
+.text
+ │
+ ├── main()
+ └── function1()
+
+gpio.o
+.text
+ │
+ └── gpio_init()
+
+uart.o
+.text
+ │
+ └── uart_send()
+
+```
+
+#### After linking:
+
+Only one unified `.text` section placed in Flash:
+
+```text
+FLASH
+0x08000000
+ │
+ ▼
+.text
+ ├── main()
+ ├── function1()
+ ├── gpio_init()
+ └── uart_send()
+
+```
+
+---
+
+## 2. `.data` Placement
+
+Example:
+
+```c
+int global = 10;
+
+```
+
+The compiler places `global = 10` inside the `.data` section.
+
+However, the value `10` cannot exist only in RAM at startup, because RAM contents are volatile and undefined after a power reset. How would `global` hold the value `10` immediately after reset if RAM starts empty?
+
+To solve this, the linker assigns two different addresses to `.data`:
+
+1. **Load Address (LMA / Flash):** Where the initial value is permanently stored.
+2. **Virtual / Execution Address (VMA / RAM):** Where the variable lives and mutates during runtime.
+
+### Load Address vs. Virtual Address
+
+**Load Address (LMA in Flash):**
+
+```text
+FLASH
++---------------------+
+| .data initial image |
+| global = 10         |
++---------------------+
+
+```
+
+**Virtual Address (VMA in RAM):**
+
+```text
+RAM
++---------------------+
+| .data runtime section|
+| global = 10         |
++---------------------+
+
+```
+
+Our simplified linker script previously looked like:
+
+```ld
+.data :
+{
+    *(.data)
+} > RAM
+
+```
+
+This only tells the linker that the runtime location (VMA) is RAM. It says nothing about where the initial values are stored in Flash.
+
+### Real STM32 Linker Script Syntax: `> RAM AT > FLASH`
+
+Real STM32 linker scripts use this syntax:
+
+```ld
+.data :
+{
+    *(.data)
+} > RAM AT > FLASH
+
+```
+
+The clause `> RAM AT > FLASH` explicitly tells the linker:
+
+* **Runtime location (VMA):** `> RAM` (Run the `.data` section from RAM)
+* **Initial storage location (LMA):** `AT > FLASH` (Store its initial contents in FLASH)
+
+Now the linker structures memory like this:
+
+```text
+FLASH
+----------------------
+.text
+.rodata
+.data initial image
+----------------------
+
+RAM
+----------------------
+.data (runtime)
+----------------------
+
+```
+
+### What Happens During Startup & Execution?
+
+1. **Before MCU runs:** Flash stores the initial values.
+
+```text
+FLASH (LMA)
+.text
+.rodata
+.data initial image
+-------------------
+global = 10
+counter = 5
+
+```
+
+2. **During Reset:** The Reset Handler copies the initial image from Flash to RAM before `main()` executes:
+
+```text
+FLASH (.data initial image)
+           │
+           ▼ (Reset Handler copies)
+RAM (.data runtime section)
+
+```
+
+3. **After Copying:**
+
+```text
+RAM (VMA)
+global = 10
+counter = 5
+
+```
+
+Now `main()` starts.
+
+4. **Runtime Changes:**
+If your program later executes:
+
+```c
+global = 99;
+
+```
+
+RAM becomes:
+
+```text
+RAM
+global = 99
+
+```
+
+Flash remains unchanged:
+
+```text
+FLASH
+global = 10
+
+```
+
+Nothing writes back to Flash. The `.data` section executes from RAM, but its initial contents are preserved in Flash.
+
+---
+
+## 3. `.bss` Placement
+
+Example:
+
+```c
+int counter;
+
+```
+
+The compiler puts uninitialized variables inside `.bss`. Because uninitialized variables have no custom initial value, they do not need storage space in Flash. The linker script simply places `.bss` in RAM:
+
+```ld
+.bss :
+{
+    *(.bss)
+} > RAM
+
+```
+
+```text
+RAM
+.bss
+ ├── counter
+ ├── flag
+ └── buffer
+
+```
+
+During startup, the Reset Handler iterates through the `.bss` region and writes `0` to every byte. After that, `counter == 0`.
+
+---
+
+## Complete Memory Map Visualization
+
+Consider this complete program:
+
+```c
+int global1 = 10;
+int global2;
+const int MAX = 100;
+
+int main(void)
+{
+    int local;
+    return 0;
+}
+
+```
+
+### Compiler Output (`main.o`):
+
+```text
+main.o
+.text   → machine instructions for main()
+.data   → global1 = 10
+.bss    → global2
+.rodata → MAX = 100
+
+```
+
+### After Linker Processing:
+
+```text
+FLASH
+0x08000000
+ │
+ +----------------------+
+ | .text                |
+ | main()               |
+ +----------------------+
+ | .rodata              |
+ | MAX = 100            |
+ +----------------------+
+ | .data initial image  |
+ | global1 = 10         |
+ +----------------------+
+
+RAM
+0x20000000
+ │
+ +----------------------+
+ | .data (runtime)      |
+ | global1 = 10         |
+ +----------------------+
+ | .bss                 |
+ | global2 = 0          |
+ +----------------------+
+ |                      |
+ | Stack (grows down)   |
+ | local variable       |
+
+```
+
+---
