@@ -1137,3 +1137,166 @@ RAM
 ```
 
 ---
+
+## Linker Symbols: The Bridge to Startup Code
+
+The linker script specifies `.text > FLASH`, `.data > RAM AT > FLASH`, and `.bss > RAM`. But how does the Reset Handler actually know:
+
+1. Where `.data` starts in Flash?
+2. Where `.data` starts in RAM?
+3. Where `.data` ends in RAM?
+
+Linker symbols (`_sidata`, `_sdata`, `_edata`, `_sbss`, `_ebss`) bridge the gap between the Linker Script, Startup Code, and Hardware Initialization.
+
+* `_sdata`   ->  Start of `.data` in RAM (destination start)
+* `_edata`   ->  End of `.data` in RAM (destination end)
+* `_sidata`  ->  Start of `.data` initial image in Flash (source start)
+
+### Defining Symbols in the Linker Script
+
+```ld
+.data :
+{
+    _sdata = .;
+    *(.data)
+    _edata = .;
+} > RAM AT > FLASH
+
+_sidata = LOADADDR(.data);
+
+```
+
+### What Does the Dot (`.`) from _sdata = .; mean?
+
+In linker scripts, `.` is the Location Counter. It represents the current memory address being assigned.
+-   _sdata → a symbol created by the linker
+-   . → current linker address
+
+Now let's see why we need _sdata in .data copying.
+
+The linker reads this as:
+
+Create a .data section.
+Place the runtime .data section in RAM.
+Before placing variables, remember the current RAM address.
+
+Example:
+
+Assume RAM .data starts at:
+
+RAM
+
+0x20000000
+     ^
+     |
+     .
+
+At this moment _sdata = .;
+
+Advances the location counter as data sections are placed.
+becomes: _sdata = 0x20000000
+
+Meaning: Remember the starting address of .data in RAM.
+
+So _sdata is basically the start address of .data in RAM.
+
+
+
+Summary of symbols:
+
+* `_sidata`  ->  Flash source start
+* `_sdata`   ->  RAM destination start
+* `_edata`   ->  RAM destination end
+
+---
+
+## How Startup Code Uses These Symbols
+
+In C startup code (`startup.c`), the Reset Handler accesses these linker-generated symbols using the `extern` keyword:
+
+```c
+extern unsigned int _sidata;
+extern unsigned int _sdata;
+extern unsigned int _edata;
+
+void Reset_Handler(void)
+{
+    unsigned int *source = &_sidata;
+    unsigned int *destination = &_sdata;
+
+    // Copy .data initial values from Flash to RAM
+    while (destination < &_edata)
+    {
+        *destination = *source;
+        destination++;
+        source++;
+    }
+
+    // Call main application
+    main();
+}
+
+```
+
+---
+
+## Visualizing the Complete Execution Flow
+
+```text
+Power ON ⚡
+   │
+   ▼
+FLASH (0x08000000)
+ ├── .text (Reset_Handler, main)
+ ├── .rodata
+ └── .data initial image (global = 25)
+   │
+   ▼
+RAM (0x20000000)
+ ├── .data (global = ?)
+ └── .bss
+   │
+   ▼
+Reset Handler executes:
+ ├── _sidata points to Flash (global = 25)
+ ├── _sdata points to RAM (destination start)
+ ├── Copies bytes from Flash to RAM until _edata
+ └── Zero-fills .bss section
+   │
+   ▼
+RAM becomes initialized:
+ └── global = 25
+   │
+   ▼
+main() executes
+
+```
+
+---
+
+## Crucial Embedded Concept
+
+The linker script **does not copy anything by itself**.
+
+The linker script only states:
+
+> *"The initial data starts here in Flash, and the runtime data belongs there in RAM."*
+
+The actual memory transfer (`FLASH`  ->  `RAM`) is performed at runtime by the **Reset Handler code**.
+
+```text
+Linker Script
+     │
+     ▼ (creates symbols)
+ _sidata, _sdata, _edata
+     │
+     ▼ (used by)
+ Reset Handler
+     │
+     ▼ (copies)
+ .data from Flash to RAM
+     │
+     ▼
+   main()
+
+```
