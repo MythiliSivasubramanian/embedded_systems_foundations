@@ -14,7 +14,10 @@
     * [Load Address vs. Virtual Address](#load-address-vs-virtual-address)
     * [What Happens During Startup & Execution?](#what-happens-during-startup--execution)
   * [3. `.bss` Placement](#3-bss-placement)
-
+  * [Complete Memory Map Visualization](#complete-memory-map-visualization)
+  * [Linker Symbols: The Bridge to Startup Code](#linker-symbols-the-bridge-to-startup-code)
+  * [Visualizing the Complete Execution Flow](#visualizing-the-complete-execution-flow)
+  
 ## The Complete Build Process
 
 We already know:
