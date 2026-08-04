@@ -6,7 +6,14 @@
 * [Building Our Own Linker Script](#building-our-own-linker-script)
 * [Connect Everything Together](#connect-everything-together)
 * [Key Topics Overview](#key-topics-overview)
-
+* [The Linker](#the-linker)
+* [Writing Our Own Memory Layout for STM32](#writing-our-own-memory-layout-for-stm32)
+  * [1. The SECTIONS Block](#1-the-sections-block)
+    * [`.text` Placement](#text-placement)
+  * [2. `.data` Placement](#2-data-placement)
+    * [Load Address vs. Virtual Address](#load-address-vs-virtual-address)
+    * [What Happens During Startup & Execution?](#what-happens-during-startup--execution)
+  * [3. `.bss` Placement](#3-bss-placement)
 
 ## The Complete Build Process
 
