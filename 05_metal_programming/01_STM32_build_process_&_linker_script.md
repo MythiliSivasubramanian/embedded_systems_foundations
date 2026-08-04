@@ -1,5 +1,13 @@
 # STM32 Build Process & Linker Scripts
 
+## Table of Contents
+* [The Complete Build Process](#the-complete-build-process)
+* [The Memory Map](#the-memory-map)
+* [Building Our Own Linker Script](#building-our-own-linker-script)
+* [Connect Everything Together](#connect-everything-together)
+* [Key Topics Overview](#key-topics-overview)
+
+
 ## The Complete Build Process
 
 We already know:
