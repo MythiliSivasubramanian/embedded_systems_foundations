@@ -1350,5 +1350,75 @@ We just wrote the below script, but the Startup code needs addresses like source
 
 ### Linker script symbols
 
- 
+```text
+ Linker script
+       |
+       | creates symbols
+       v
+
+_sdata = RAM .data start
+
+
+Reset Handler
+       |
+       | uses symbols
+       v
+
+copies data correctly
+```
+The complete flow so far:
+
+```text
+Step 1
+
+Compiler
+---------
+Creates:
+.text
+.data
+.bss
+.rodata
+
+(No final addresses yet.)
+
+Step 2
+Linker
+---------
+Reads the linker script.
+
+Decides:
+
+.text   → FLASH
+.rodata → FLASH
+.data   → RAM (Initial image in FLASH)
+.bss    → RAM
+
+Now the final addresses are known.
+
+Step 3
+Linker
+---------
+Creates symbols like:
+
+_sdata
+_edata
+_sidata
+
+Step 4
+Reset Handler
+---------
+Uses those symbols to copy
+.data from FLASH to RAM.
+```
+
+Lets add a line in out linker script.
+```ld
+.data
+{
+    _sdata = .;
+
+    *(.data)
+
+} > RAM AT > FLASH
+```
 
