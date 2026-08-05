@@ -1164,67 +1164,63 @@ The linker script specifies `.text > FLASH`, `.data > RAM AT > FLASH`, and `.bss
 2. Where `.data` starts in RAM?
 3. Where `.data` ends in RAM?
 
-Linker symbols (`_sidata`, `_sdata`, `_edata`, `_sbss`, `_ebss`) bridge the gap between the Linker Script, Startup Code, and Hardware Initialization.
-
-* `_sdata`   ->  Start of `.data` in RAM (destination start)
-* `_edata`   ->  End of `.data` in RAM (destination end)
-* `_sidata`  ->  Start of `.data` initial image in Flash (source start)
+Linker symbols helps with these information. Scroll further down for Linker symbols. 
 
 ### Defining Symbols in the Linker Script
 
 ```ld
+.text
+{
+    *(.text)
+} > FLASH
+
+.rodata
+{
+    *(.rodata)
+} > FLASH
+
 .data :
 {
     _sdata = .;
     *(.data)
-    _edata = .;
 } > RAM AT > FLASH
 
 _sidata = LOADADDR(.data);
 
 ```
+In the above linker script, .text section instructs to take all .text section for all files and to place as one .text section in FLASH. Similary for .rodata. 
+But .data section instructs to place the .data section in two locations RAM and in FLASH aswell. One is Load memory Access (LMA) and the other is Vitual Memory Access (VMA).
 
-### What Does the Dot (`.`) from _sdata = .; mean?
-
-In linker scripts, `.` is the Location Counter. It represents the current memory address being assigned.
--   _sdata → a symbol created by the linker
--   . → current linker address
-
-Now let's see why we need _sdata in .data copying.
-
-The linker reads this as:
-
-Create a .data section.
-Place the runtime .data section in RAM.
-Before placing variables, remember the current RAM address.
+**Load Memory Address (LMA)** is where the initial value is stored before startup. Usually in FLASH.
 
 Example:
 
-Assume RAM .data starts at:
+FLASH
+.data initial image
+global = 10
 
+**Virtual Memory Address (VMA)** is where the variable lives during normal execution. Usually in RAM
+
+After Reset Handler:
 RAM
+.data
+global = 10
 
-0x20000000
-     ^
-     |
-     .
+Later when this variable global is changed to 50, then it is updated only in RAM and not in FLASH.
 
-At this moment _sdata = .;
+So the linker script needs to express both. Hence we write as the below meaning Runtime location : RAM
+Initial copy : FLASH
 
-Advances the location counter as data sections are placed.
-becomes: _sdata = 0x20000000
+```ld 
+.data :
+{
+    *(.data)
+} > RAM AT > FLASH
+```
+Here AT is the linker script keyword, meaning Load address at. 
 
-Meaning: Remember the starting address of .data in RAM.
+Now, the next line `*(.data)` means take all .data sections from all object files and place them here.
 
-So _sdata is basically the start address of .data in RAM.
-
-
-
-Summary of symbols:
-
-* `_sidata`  ->  Flash source start
-* `_sdata`   ->  RAM destination start
-* `_edata`   ->  RAM destination end
 
 ---
 
@@ -1318,3 +1314,41 @@ Linker Script
    main()
 
 ```
+
+## .bss section:
+
+Example : ```c int counter; ``` (without an initial value / uninitialized global variable.) belongs to the .bss section, and it only needs RAM.
+
+So does Flash need to store an initial value? No. Because there is no initial value. The C rule says, the uninitialized variables must start with 0. Hence the startup code simply creates zero in RAM.
+
+Linker script for the .bss section:
+
+```ld
+.bss
+{
+    *(.bss)
+} > RAM
+```
+1.  Collect all .bss sections from object files.
+2.  Combine them into one final .bss.
+3.  Reserve RAM space for them.
+
+### Startup difference between .data and .bss:
+
+For .data the startup operation is to copy the data from Flash to RAM where as the startup operation in .bss section is to clear .bss section in RAM(no copy from Flash to RAM). So During startup, the Reset Handler has to set each byte in .bss to 0.
+
+## How does the Reset Handler know where .data starts, where it ends, and where to copy it?
+
+We just wrote the below script, but the Startup code needs addresses like source address, destionation address and length. The linker provides these information using linker symbols.
+
+```ld
+.data
+{
+    *(.data)
+} > RAM AT > FLASH
+```
+
+### Linker script symbols
+
+ 
+
