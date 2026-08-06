@@ -1189,7 +1189,7 @@ _sidata = LOADADDR(.data);
 
 ```
 In the above linker script, .text section instructs to take all .text section for all files and to place as one .text section in FLASH. Similary for .rodata. 
-But .data section instructs to place the .data section in two locations RAM and in FLASH aswell. One is Load memory Access (LMA) and the other is Vitual Memory Access (VMA).
+But .data section instructs to place the .data section in two locations RAM and in FLASH aswell. One is Load memory Address (LMA) and the other is Vitual Memory Address (VMA).
 
 **Load Memory Address (LMA)** is where the initial value is stored before startup. Usually in FLASH.
 
@@ -1411,14 +1411,281 @@ Uses those symbols to copy
 .data from FLASH to RAM.
 ```
 
-Lets add a line in out linker script.
+Lets add a line in our linker script.
 ```ld
 .data
 {
     _sdata = .;
 
     *(.data)
+    
+    _edata = .;
 
 } > RAM AT > FLASH
+
+_sidata = LOADADDR(.data);
+
+
 ```
 
+What does the . (dot) in _sdata = .; refers to in this line? In a linker script, the . (dot) is a special variable called the **location counter.** Basially, the dot (.) always means the current address where the linker is placing things.
+
+Suppose, .data starts in RAM at `0x20000000`, when the linker enters then the current address (.) will be `0x20000000`. Hence it creates a symbol named _sdata whose value is the current address (here `0x20000000`).
+
+
+```ld _sdata = .;``` does not move or copy any data. The linker is not allocating memory here. It is not moving the location counter. It is simply creating a symbol (label).It creates a symbol called _sdata and holds the current address. `_sdata` is simply a name that refers to this address.
+
+```ld *(.data)``` tells the linker to collect all `.data`sections from the input object files and to place it here. Lets assume, ```c unint32_t a = 5; // 4 bytes  uint32_t b = 10; // 4 bytes ```  Initailly, `_sdata` has the adderress `0x20000000`. As the linker places those in RAM, the (.) dot operator automatically moves forward (8 bytes). The current address of `_sdata`is `0x20000008` Now, the next line in the linker script is ```ld _edata = .; ``` and it records `0x20000008`
+
+```
+_sdata = start of .data
+_edata = end of .data
+```
+`_edata` points to the first address after the .data section, not the last byte inside it.
+
+The start and end address are in `_sdata` and `_edata`. `.data` has the initial image stored in FLASH. Hence, the Reset Handler must know the address i.e where does this .data image begin in flash?  
+
+```text
+FLASH
+
+0x08004000
+ ------------------
+| .text            |
+ ------------------
+| .rodata          |
+ ------------------
+| .data image      |  <-- global = 10
+ ------------------
+
+```
+Hence, the linker creates an another symbol called `_sidata` which gives the flash address of `.data` image. `.` gives the current runtime address (RAM) because we're inside .data section in RAM. But how do we get the Flash address? We have to load the Flash address.  `_sidata = LOADADDR(.data);` solves it.
+
+```text
+FLASH               RAM
+(LMA)               (VMA)
+
+.data image   --->  .data
+
+```
+So `LOADADDR(.data)` returns the Flash (LMA) of `.data`
+
+Lets consider a quick example:
+
+`.data` image starts at address `0x08001234`in Flash. Then `_sidata = LOADADDR(.data);` becomes `_sidata = 0x08001234`. 
+
+
+*Linker Symbols Summary:
+-   _sidata : Start initial image (stored in Flash)
+-   _sdata  : Start .data in RAM
+-   _edata  : End .data in RAM
+
+These names themselves are not fixed. Different projects may use different names. The linker creates whatever symbol names we define in the linker script. The startup code must then use those same names.
+
+## Minimal STM32 Linker Script :
+
+/* 
+   Minimal STM32 Linker Script (so far learnt))
+
+   1. Tell linker what memories exist - Memory BLOCK
+   2. Tell linker where each section should be placed in memory.
+   3. Create symbols used by Reset Handler.
+*/
+
+
+/* 
+   1. MEMORY BLOCK - Defines available memories in MCU
+*/
+
+MEMORY
+{
+    FLASH (rx)  : ORIGIN = 0x08000000, LENGTH = 1024K
+    RAM   (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+}
+
+
+/* 
+   2. SECTIONS BLOCK - Places compiler-generated sections into memories
+*/
+
+SECTIONS
+{
+
+    /* .text
+       Program instructions
+       Contains:
+       - Reset_Handler()
+       - functions
+       Runtime execution happens from Flash
+      */
+
+    .text :
+    {
+        *(.text)
+    } > FLASH
+
+
+
+    /* .rodata - Read-only data
+     Contains:
+       - const variables
+       - string literals
+       Example: const int MAX = 100; HELLO -> printf("HELLO");
+       Stored permanently in Flash
+     */
+
+    .rodata :
+    {
+        *(.rodata)
+    } > FLASH
+
+
+
+    /* 
+       Initialized global/static variables
+       Example:
+       int counter = 5;
+
+       Two locations: FLASH AND RAM
+
+       FLASH: Initial image (Load Memory Address)
+       RAM: Runtime copy (Virtual Memory Address)
+
+       Startup code copies: From FLASH .data. to RAM .data
+
+    */
+
+    .data :
+    {
+
+        // Start address of .data in RAM 
+        _sdata = .;
+
+        // Collect all .data sections from object files
+        *(.data)
+
+        //End address of .data in RAM 
+        _edata = .;
+
+    } > RAM AT > FLASH
+
+
+
+    /* 
+       Address of initial .data image in Flash
+       Used by Reset Handler as source address
+       Copy: _sidata  --->  _sdata ... _edata
+    */
+
+    _sidata = LOADADDR(.data);
+
+
+
+    /* 
+       Uninitialized global/static variables
+        Example: int flag; No Flash copy needed.
+        Reset Handler only clears RAM: .bss = 0
+    */
+
+    .bss :
+    {
+      //Start of .bss in RAM 
+        _sbss = .;
+
+
+      // Collect all .bss sections
+        *(.bss)
+
+
+      // End of .bss in RAM
+        _ebss = .;
+
+
+    } > RAM
+
+}
+
+## Complete build flow
+
+```text
+
+                 C Source Code
+                      |
+                      |
+              Compiler creates sections
+                      |
+                      |
+       --------------------------------
+       |          |        |          |
+      .text     .data    .bss      .rodata
+       |          |        |          |
+       --------------------------------
+                    |
+                    |
+                  Linker
+
+              Reads linker script
+
+                      |
+                      |
+
+        Places sections into memories
+
+
+FLASH
+
+.text
+  |
+  |-- main()
+  |-- Reset_Handler()
+
+.rodata
+  |
+  |-- const MAX
+  |-- "Hello"
+
+.data initial image
+  |
+  |-- global = 10
+
+
+RAM
+
+.data runtime copy
+  |
+  |-- global = 10
+
+.bss
+  |
+  |-- flag = 0
+
+
+                      |
+                      |
+
+              MCU starts execution
+
+
+Reset_Handler()
+
+1. Copy .data
+
+FLASH (_sidata)
+        |
+        |
+RAM (_sdata → _edata)
+
+
+2. Clear .bss
+
+_sbss → _ebss = 0
+
+
+3. Call main()
+
+
+                      |
+                      |
+
+                 Application runs
+                 
+```
