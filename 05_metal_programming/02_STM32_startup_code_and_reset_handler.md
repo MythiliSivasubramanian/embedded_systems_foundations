@@ -5,6 +5,8 @@
 - [What happens after MCU power ON?](#what-happens-after-mcu-power-on)
 - [Reset Handler - Bridge between linker script and C program](#reset-handler---bridge-between-linker-script-and-c-program)
 - [What happens to .bss during startup?](#what-happens-to-bss-during-startup)
+- [How does the CPU know where Reset Handler is?](#How-does-the-CPU-know-where-Reset-Handler-is)
+
 
 ---
 # What happens after MCU power ON?
@@ -235,4 +237,232 @@ The symbols `_sbss` and `_ebss` are created by the linker script:
     _ebss = .;
 
 } > RAM
+```
+
+# How does the CPU know where Reset Handler is?
+
+So far, we learned that, as soon as either MCU reset or MCU power on, the Reset Handler performs few operations (copy. data, clear .bss, call main()). But who tells the CPU the address of Reset Handler?
+
+## Vector Table
+
+For STM32 Cortex-M4, the very beginning of Flash contains a special table called as the Vector Table.
+
+A simplified view:
+```text
+FLASH
+0x08000000
+|
+|
+ ---------------------- 
+| Initial Stack Pointer |
+ -----------------------
+| Reset_Handler address |
+ -----------------------
+| NMI Handler address   |
+ -----------------------
+| HardFault address     |
+ -----------------------
+| ...                  |
+ -----------------------
+
+```
+The CPU has a very fixed rule:
+
+When reset happens:
+-   Read the first word from Flash.
+-   Load it into the Stack Pointer.
+-   Read the second word from Flash.
+-   Jump to that address.
+
+Example:
+
+```text
+Imagine Flash contains:
+Address          Value
+--------------------------------
+
+0x08000000       0x20020000
+
+0x08000004       0x08000100
+```
+
+The CPU interprets this as:
+
+First entry:
+
+```text
+0x08000000
+        |
+
+0x20020000   
+This is the initial Stack Pointer.
+```
+So CPU does `SP = 0x20020000`. Now the stack is ready.
+
+Second entry:
+
+0x08000004
+        |
+
+0x08000100
+This is the address of: Reset_Handler()
+```
+CPU does Pogram Counter `PC = 0x08000100`. Now execution starts from Reset_Handler.
+
+**Visualization :**
+
+```text
+
+Power ON / Reset
+        |
+        |
+CPU reads Vector Table from Flash
+        |
+        |
+         ----------------------------
+        |                            |
+        |                            |
+
+First entry                  Second entry
+
+Initial SP                  Reset_Handler address
+
+        |                            |
+        |                            |
+
+   Stack ready              Jump to Reset_Handler
+
+                                     |
+                                     |
+                                     v
+
+                              Copy .data
+                              Flash ---> RAM
+
+                                     |
+                                     |
+                              Clear .bss
+                              RAM = 0
+                                     |
+                                     |
+
+                              Call main()
+
+```
+The linker script places .text > FLASH.  The Reset Handler is a function, so its machine instructions are inside .text section and the address of the Reset Handler is stored in Vector table. The CPU reads the address from the Vector Table and jumps there.
+
+```text
+
+FLASH
+Vector Table 
+.text
+   |
+   +-- Reset_Handler() instructions
+   +-- main() instruction
+   +-- other functions instructions
+.rodata
+.data initial image
+
+    
+RAM
+.data runtime
+.bss
+Stack
+Heap
+```
+
+Now, we know that the compiler creates various sections (.data, .text, .rodata, .bss,..), the linker places these sections into the actual MCU memory and Reset Handler copies the .data sections and clears .bss before calling main(). The Vector Table in Flash contains the Stack Pointer address (1st entry) and the address of the Reset Handler as the second entry. But where does the Vector Table come from? I mean, who places this Vector table in Flash? It is usually defined in the startup file.
+
+**Startup file**
+
+```c
+__attribute__((section(".isr_vector")))
+const void *vector_table[] =
+{
+    &_estack,
+    Reset_Handler,
+    NMI_Handler,
+    HardFault_Handler
+};
+```
+Lets learn more about each line of above code later, but for now the important idea here is that the startup file creates a special section. called **`.isr_vector`**. 
+
+The Vector Table is not normally part of .text. It has its own section `.isr_vector` created by the startup file.
+
+The linker script places it at the very beginning of Flash:
+
+```ld 
+.isr_vector :
+{
+    KEEP(*(.isr_vector))
+} > FLASH
+```
+** Flash Layout**
+
+```text
+FLASH
+0x08000000
+|
+ --------------------
+| Vector Table       |
+|                    |
+| Stack pointer      |
+| Reset_Handler addr |
+| Interrupt vectors  |
+ --------------------
+|
+ --------------------
+| .text              |
+| Reset_Handler code |
+| main()             |
+| functions          |
+ --------------------
+|
+ --------------------
+| .rodata            |
+ --------------------
+|
+ --------------------
+| .data initial image|
+ --------------------
+
+```
+
+**Linker Script with Vector info:**
+
+
+```ld
+SECTIONS
+{
+    .isr_vector :
+    {
+        KEEP(*(.isr_vector))
+    } > FLASH
+
+
+    .text :
+    {
+        *(.text)
+    } > FLASH
+    
+    ....
+}
+```
+
+```text
+FLASH
+0x08000000
+ |
+ |
+  ---------------- 
+ | .isr_vector    |
+ | Vector Table   |
+  ---------------- 
+ |
+  ---------------- 
+ | .text          |
+ | Reset_Handler  |
+ | main()         |
+  ---------------- 
+
 ```
