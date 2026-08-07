@@ -6,6 +6,7 @@
 - [Reset Handler - Bridge between linker script and C program](#reset-handler---bridge-between-linker-script-and-c-program)
 - [What happens to .bss during startup?](#what-happens-to-bss-during-startup)
 - [How does the CPU know where Reset Handler is?](#How-does-the-CPU-know-where-Reset-Handler-is)
+- [Complete Process visualization:](#Complete-Process-visualization)
 
 
 ---
@@ -464,5 +465,186 @@ FLASH
  | Reset_Handler  |
  | main()         |
   ---------------- 
+
+```
+Now, lets quickly understand few lines of Startup files (Startup file deep dive in separate file).
+
+```c
+.word _estack
+.word Reset_Handler
+```
+Lets understand:
+-   Where _estack comes from
+-   Why stack starts at the top of RAM
+-   How linker script and startup file talk to each other
+ 
+ **First entry: _estack : Where _estack comes from**
+ 
+ ```c .word _estack``` means to store the address of the top of the stack. The _estack symbol represents end/top of RAM where Stack starts. But where does _estack come from? Linker Script. Earlier in linker script we used symbols like `_sdata = .;`, `_edata = .;` where these symbols store addresses. Similarly, _estack is also just a linker symbol. Unlike `_sdata`, _estack is not inside a section. It is usually defined near the top of the linker script like this ```ld _estack = ORIGIN(RAM) + LENGTH(RAM);```
+
+For our STM32F407VG:
+
+```text
+
+ORIGIN(RAM) = 0x20000000
+LENGTH(RAM) = 128 KB
+```
+So the linker calculates:
+
+```text
+_estack = 0x20000000 + 128 KB =0x20020000 
+```
+
+Now _estack simply becomes another symbol with the value `_estack = 0x20020000`
+
+The startup file then places this value into the first entry of the Vector Table, and when the CPU resets, it loads: `SP = _estack = 0x20020000`
+
+**Who uses _estack?** Its not the linker. The startup file uses `_estack`.
+
+For example:
+```text
+.word _estack
+.word Reset_Handler
+```
+
+When the linker processes this startup file, it replaces _estack with its value:
+
+```text
+.word 0x20020000
+.word 0x08000100
+```
+
+So the Vector Table stored in Flash becomes:
+
+```
+FLASH
+0x08000000
+------------------
+| 0x20020000       |  <- Initial Stack Pointer
+------------------
+| 0x08000100       |  <- Reset_Handler address
+------------------
+```
+
+Then the CPU reads these values after reset. The CPU reads as `SP = 0x20020000` and the stack pointer is initialized now. 
+
+**Why stack starts at the top of RAM :**
+
+***Because the stack grows downward.***
+
+Example:
+
+Initially:
+```text
+RAM
+
+0x20020000  <-- SP starts here
+ ------------
+
+```
+
+When a function is called main();
+
+The stack grows:
+```text
+RAM
+
+0x20020000
+ ------------
+|            |
+| Stack      |
+| grows ↓    |
+|            |
+  0x2001FFF0
+```
+**This gives the stack maximum available space.**
+
+
+**Second entry: Reset_Handler**
+
+```c .word Reset_Handler``` stores the address of the Reset Handler function.
+
+Example: Reset_Handler located at 0x08000100
+
+```text
+Vector Table:
+
+FLASH
+
+0x08000000
+ ---------------- 
+| 0x20020000     | ---> Initial SP
+ ---------------- 
+| 0x08000100     | ---> Reset_Handler
+ ---------------- 
+
+```
+
+CPU does `PC = 0x08000100; and starts executing Reset Handker.
+
+```c
+void Reset_Handler(void)
+{
+    ...
+}
+```
+
+```text
+                 Linker Script
+                      |
+                      |
+         -------------------------- 
+        |                           |
+        |                           |
+
+_estack address              Reset_Handler address
+
+
+        |                           |
+         ------------- ------------- 
+                      |
+                      |
+
+              Vector Table
+
+                      |
+                      |
+
+              CPU after reset
+
+                      |
+                      |
+
+              Reset_Handler()
+
+```
+
+# Complete Process visualization:
+
+```text
+1. Compiler
+   ↓
+Creates .text, .data, .bss, .rodata
+
+2. Linker
+   ↓
+Places sections into FLASH/RAM
+Creates symbols (_sidata, _sdata, _edata, _estack...)
+
+3. Startup file
+   ↓
+Builds the Vector Table using those symbols
+
+4. CPU Reset
+   ↓
+Reads Vector Table
+Loads Stack Pointer
+Jumps to Reset_Handler
+
+5. Reset_Handler
+   ↓
+Copies .data
+Clears .bss
+Calls main()
 
 ```
