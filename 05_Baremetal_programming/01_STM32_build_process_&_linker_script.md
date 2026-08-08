@@ -2,6 +2,8 @@
 
 ## Table of Contents
 * [The Complete Build Process](#the-complete-build-process)
+* [Compiler's Job vs. Linker's Job](#Compilers-Job-vs-Linkers-Job)
+* [Why the Linker Needs a Script](#Why-the-Linker-Needs-a-Script)
 * [The Memory Map](#the-memory-map)
 * [Building Our Own Linker Script](#building-our-own-linker-script)
 * [Connect Everything Together](#connect-everything-together)
@@ -27,6 +29,56 @@ main.c  ---->  Compiler ----> main.o ----> Linker  ----> ELF ----> BIN
 
 ```
 
+## Compiler's Job vs. Linker's Job
+
+### 1. Compiler's Job (Source Code $\rightarrow$ Relocatable Object File)
+When a `.c` file is compiled, the compiler translates C code into assembly and machine instructions, generating an object file (`.o`).
+
+* **Section Creation:** Based on C language rules, the compiler categorizes code and variables into standardized sections:
+  * `.text`: Executable code instructions.
+  * `.rodata`: Read-only data (e.g., `const` variables, string literals).
+  * `.data`: Initialized global and `static` variables.
+  * `.bss`: Uninitialized global and `static` variables.
+* **No Memory Allocation:** The compiler does not assign absolute memory addresses to these sections. 
+
+---
+
+### 2. Linker's Job (Multiple `.o` Files + Linker Script $\rightarrow$ Final `.elf`)
+The linker takes all individual `.o` files across the project and combines them into a single executable (`.elf`) file (Executable and Linkable Format).
+
+* **Section Merging:** It merges like-named sections from every input object file into single output sections (e.g., all `.text` sections from `main.o`, `gpio.o`, and `usart.o` are combined into one master `.text` section).
+* **Memory Placement:** Guided by the linker script (`.ld`), the linker assigns absolute hardware memory addresses (in Flash or SRAM) to every section and symbol, ensuring code and data are mapped to valid MCU memory locations.
+
+**ELF vs. BIN (Objcopy's Job)**
+
+### 1. ELF File 
+The `.elf` file is the rich, structured output produced by the linker.
+
+* Contains: Machine code and data, plus extensive metadata (section headers, symbol tables, relocation information, and DWARF debug symbols).
+* Purpose: Used by debuggers during development because it retains variable names, source code line numbers, and section mapping details required for stepping through code and setting breakpoints.
+
+### 2. BIN File (Raw Binary)
+The `.bin` file is a headerless, "flat" byte-for-byte image of what will actually reside in MCU Flash memory.
+
+* Contains: Pure executable instructions and initial data bytes, starting directly at the Flash base address (`0x08000000`).
+* No Metadata: Contains zero debug symbols, section names, or memory offset headers.
+* Purpose: Used by flash utilities*(e.g., STM32CubeProgrammer, ST-LINK, OpenOCD) to burn raw bytes directly into physical Flash memory.
+
+### 3. How ELF becomes BIN (`objcopy`)
+The conversion is performed by **`objcopy`** (e.g., `arm-none-eabi-objcopy`).
+
+* Extracts Loadable Data: `objcopy` inspects the `.elf` file and copies only sections marked as loadable into memory (primarily `.text`, `.rodata`, and initialized `.data`).
+* Strips Metadata: It strips away symbol tables, debug sections, and ELF headers.
+* Omits Uninitialized RAM: Sections like `.bss` (uninitialized variables) are excluded from the `.bin` file size. `.bss` consumes zero space in Flash; startup code zeroes out this RAM space upon boot.
+
+### Summary
+
+| Step | Input File | Tool | Output File | Core Action |
+| :--- | :--- | :--- | :--- | :--- |
+| **Compilation** | `main.c` | Compiler (`arm-none-eabi-gcc`) | `main.o` | Translates C code into relocatable machine instructions & sections (`.text`, `.data`, `.bss`). |
+| **Linking** | `main.o` + `linker.ld` | Linker (`arm-none-eabi-ld`) | `app.elf` | Merges sections across `.o` files and maps them to absolute MCU Flash/RAM addresses. |
+| **Objcopy** | `app.elf` | Objcopy (`arm-none-eabi-objcopy`) | `app.bin` | Strips all metadata to create a flat Flash memory dump ready for flashing. |
+
 **Now lets deep dive into what the linker actually does.**
 
 ## Why the Linker Needs a Script
@@ -34,7 +86,7 @@ main.c  ---->  Compiler ----> main.o ----> Linker  ----> ELF ----> BIN
 Imagine we compiled this:
 
 ```c
-int global = 10;
+int global = 10; 
 
 const int MAX = 100;
 
@@ -84,11 +136,41 @@ Size  : 128 KB
 
 ```
 
-This information comes from the datasheet. Without knowing the available memory, writing a linker script is impossible.
+This information comes from the datasheet and reference manual. Without knowing the available memory, writing a linker script is impossible.
+
+**Finding & Verifying Memory Specs (STM32F407VG)**
+
+To write the linker script memory map (`MEMORY` block), we need exact base addresses and lengths. For STM32, base addresses come from the Reference Manual (RM0090) and exact sizes from the Datasheet (DS8626).
+
+1. **Verify Size in Datasheet (DS8626):**
+   * Go to **Ordering Information** (near end of doc).
+   * Key letter: `STM32F407V`**`G`** $\rightarrow$ **`G` = 1024 Kbytes Flash**. (`E` = 512KB, `G` = 1024KB).
+   * Check **Table 2 (Device Features)** under `STM32F407Vx` to confirm **192 KB total RAM** (128 KB Main SRAM + 64 KB CCM RAM).
+
+2. **Verify Base Addresses in Reference Manual (RM0090):**
+   * Go to **Section 2: Memory & Bus Architecture $\rightarrow$ Memory Map**.
+   * Confirm base addresses: Flash @ `0x08000000`, SRAM1 @ `0x20000000`, CCM RAM @ `0x10000000`.
+   *(Note: Base addresses are fixed across the entire F407 family, but the ending boundary depends on the part suffix `G`).*
 
 ---
 
 ## Building Our Own Linker Script
+
+**Linker Script Layout**
+
+```text
+Linker Script
+ │
+ ├── MEMORY
+ │     │
+ │     └── What memories exist?
+ │
+ └── SECTIONS
+       │
+       └── Which section goes into which memory?
+       
+```
+
 
 We'll start with something very small:
 
@@ -101,16 +183,12 @@ MEMORY
 
 ```
 
-Then we'll slowly add:
+Then we'll slowly add sections:
 
 * `.text`
 * `.rodata`
 * `.data`
 * `.bss`
-* Stack
-* Heap
-
-One section at a time.
 
 ---
 
@@ -119,11 +197,12 @@ One section at a time.
 Eventually, we'll understand exactly how this works:
 
 ```text
-main.c ---->Compiler----> main.o ----> Linker  --------------> ELF ----> Flash Image ----> MCU Boots ----> Reset Handler
-                                        │ uses Linker Script                                                │
-                                                                                                            ├── Copy .data
-                                                                                                            ├── Clear .bss
-                                                                                                            └── Call main()
+main.c ->Compiler ->main.o-> Linker-> ELF ->Flash Image->MCU Boots ->  ResetHandler                      
+                                ├
+                            Linker Script                               ├── Copy .data  
+                                                                        ├── Clear .bss b
+                                                                        └── Call main()
+                    
 
 ```
 
@@ -182,19 +261,7 @@ It does not know:
 * `.data` will live in RAM
 * `.bss` will live in RAM
 
-The compiler only sees one C source file.
-
-```c
-int global = 10;
-
-const int MAX = 100;
-
-int main(void)
-{
-    int local = 20;
-}
-
-```
+The compiler only sees one C source file, like code mentioned above.
 
 The compiler's job is simply to: *Convert this C code into machine instructions and organize the output into sections.*
 
@@ -324,45 +391,21 @@ For example, the **Reset Handler** needs to know:
 * Where does `.bss` start?
 * Where does `.bss` end?
 
-The linker script creates symbols like:
+The linker script creates symbols like these to store thier addresses.
 
-* `_data_start`
-* `_data_end`
-* `_data_load`
-* `_bss_start`
-* `_bss_end`
+* `_data_start` or `_sdata`
+* `_data_end` or `_edata`
+* `_data_load` 
+* `_bss_start` or `_sbss`
+* `_bss_end` or `_ebss`
 
 Then the Reset Handler uses those addresses.
 
-```text
-C file ----> compiler ---> Object file (.o) -----------------------------> Linker + linker script ------------------> final one ELF
-                                │Contains sections but no MCU address           │ multiple object files as input            │ contains 
-                                 .text                                                                                      .text  → Flash address
-                                 .data                                                                                      .data  → RAM address
-                                 .rodata                                                                                    .bss   → RAM address
-                                 .bss                                                                                           
-
-```
-
 **What exactly is inside an object file (`.o`)?**
 
-Because when we write:
+Because when we write: ```c int global = 10; ```. How does the compiler decide that this variable belongs to `.data`? And when we write ```c const int MAX = 100; ``` Why does it go to `.rodata`? It is based on the C language rules.
 
-```c
-int global = 10; 
-
-```
-
-How does the compiler decide that this variable belongs to `.data`? And when we write:
-
-```c
-const int MAX = 100;
-
-```
-
-Why does it go to `.rodata`? It is based on the C language rules.
-
-The compiler classifies variables based on: Scope, Initialization, and the `const` qualifier.
+The compiler classifies variables based on Scope, Initialization, and the `const` qualifier.
 
 ---
 
@@ -530,7 +573,6 @@ heap
 2. Compiler decides what belongs in each section.
 3. Compiler does not assign addresses.
 4. Linker assigns addresses using the linker script.
-5. Startup code moves `.data` from Flash -> RAM and clears `.bss`.
 
 ---
 
@@ -641,60 +683,12 @@ Linker Script
        └── Which section goes into which memory?
 
 ```
-Suppose we write:
+Suppose want to write as:
 
 * `.text` -> FLASH
 * `.rodata` -> FLASH
 * `.data` -> RAM
 * `.bss` -> RAM
-
-Now it can build the final executable.
-
----
-
-## The Complete Flow
-
-This is one of the most important diagrams in embedded systems:
-
-```text
-                 C Source Files
-                        │
-                        ▼
-                  Compiler
-                        │
-                        ▼
-              Object Files (.o)
-
-        .text
-        .data
-        .bss
-        .rodata
-
-                        │
-                        ▼
-               Linker + Linker Script
-                        │
-          ┌─────────────┴─────────────┐
-          │                           │
-     MEMORY Block              SECTIONS Block
-  What memory exists?       Where does each section go?
-          │                           │
-          └─────────────┬─────────────┘
-                        │
-                        ▼
-                 Final ELF File
-                        │
-                        ▼
-              Ready to be programmed
-              into the STM32 Flash
-
-```
-
----
-
-## A Real Linker Script
-
-A simplified STM32 linker script looks like this:
 
 ```ld
 MEMORY
@@ -828,45 +822,6 @@ The Linker Script:
 
 ---
 
-## 1. The SECTIONS Block
-
-A simplified linker script:
-
-```ld
-SECTIONS
-{
-    .text :
-    {
-        *(.text)
-    } > FLASH
-
-    .data :
-    {
-        *(.data)
-    } > RAM
-
-    .bss :
-    {
-        *(.bss)
-    } > RAM
-}
-
-```
-
-Now we have given explicit instructions to the linker.
-
-### `.text` Placement
-
-```ld
-.text :
-{
-    *(.text)
-} > FLASH
-
-```
-
-This tells the linker to take all input `.text` sections from all compiled object files and combine them into the final `.text` section located in FLASH.
-
 #### Before linking:
 
 Multiple `.o` files, each containing individual sections:
@@ -909,7 +864,7 @@ FLASH
 
 ---
 
-## 2. `.data` Placement
+## `.data` Placement
 
 Example:
 
@@ -924,12 +879,12 @@ However, the value `10` cannot exist only in RAM at startup, because RAM content
 
 To solve this, the linker assigns two different addresses to `.data`:
 
-1. **Load Address (LMA / Flash):** Where the initial value is permanently stored.
-2. **Virtual / Execution Address (VMA / RAM):** Where the variable lives and mutates during runtime.
+1. **Load Memory Address (LMA / Flash):** Where the initial value is permanently stored.
+2. **Virtual Memory / Execution Address (VMA / RAM):** Where the variable lives and mutates during runtime.
 
-### Load Address vs. Virtual Address
+### Load Memory Address vs. Virtual Memory Address
 
-**Load Address (LMA in Flash):**
+**Load Memory Address (LMA in Flash):**
 
 ```text
 FLASH
@@ -940,7 +895,7 @@ FLASH
 
 ```
 
-**Virtual Address (VMA in RAM):**
+**Virtual Memory Address (VMA in RAM):**
 
 ```text
 RAM
@@ -1034,21 +989,7 @@ counter = 5
 Now `main()` starts.
 
 4. **Runtime Changes:**
-If your program later executes:
-
-```c
-global = 99;
-
-```
-
-RAM becomes:
-
-```text
-RAM
-global = 99
-
-```
-
+If your program later executes: ```c global = 99; ```, RAM becomes ```text RAM global = 99 ```
 Flash remains unchanged:
 
 ```text
@@ -1061,7 +1002,7 @@ Nothing writes back to Flash. The `.data` section executes from RAM, but its ini
 
 ---
 
-## 3. `.bss` Placement
+## `.bss` Placement
 
 Example:
 
@@ -1154,7 +1095,127 @@ RAM
 
 ```
 
----
+## The Complete Flow
+
+This is one of the most important diagrams in embedded systems:
+
+```text
+                 C Source Files
+                        │
+                        ▼
+                  Compiler
+                        │
+                        ▼
+              Object Files (.o)
+
+        .text
+        .data
+        .bss
+        .rodata
+
+                        │
+                        ▼
+               Linker + Linker Script
+                        │
+          ┌─────────────┴─────────────┐
+          │                           │
+     MEMORY Block              SECTIONS Block
+  What memory exists?       Where does each section go?
+          │                           │
+          └─────────────┬─────────────┘
+                        │
+                        ▼
+                 Final ELF File
+                        │
+                        ▼
+              Ready to be programmed
+              into the STM32 Flash
+
+```
+
+## The Anatomy of a Linker Script
+
+Here is the high-level anatomy of a typical STM32 linker script. This is to understand what are the major blocks inside a real STM32 linker script, and why does each block exist? This is a simplified overview intended to introduce the major components of a linker script. Many production linker scripts contain additional sections and directives that will be explored later.
+
+Fundamental sections of linker script required to understand the startup file is discussed above. Other Sections like `.isr_vector`, `.ARM.exidx `, `.heap`, `.stack`will be discussed later in other separate files. 
+
+
+```ld
+/* Entry point : Tell the linker which function is the program's entry point */
+ENTRY(Reset_Handler)
+
+/* Memory regions  : Describe the MCU's available memories. */
+MEMORY
+{
+    FLASH (rx) : ORIGIN = 0x08000000, LENGTH = 1024K
+    RAM (rwx) : ORIGIN = 0x20000000, LENGTH = 128K
+}
+
+/* Linker symbols  : Create addresses that startup code and the application will use */
+_estack = ...;
+
+/* Sections : Decide where each compiler-generated section goes */
+SECTIONS
+{
+    /* .isr_vector : Place the Vector Table at the beginning of Flash */
+    .isr_vector :
+    {
+        ....
+    }
+    
+    /* .text : Program instructions */
+    .text :
+    {   
+        *(.text)
+        
+    } > FLASH
+    
+    /* .rodata : Read-only constants */
+    .rodata :
+    {
+       .... 
+    } > FLASH
+    
+    
+    /* .ARM.exidx : Exception unwinding information (mainly used for C++ exceptions and debugging) */
+    .ARM.exidx :
+    {
+        ...
+    }
+    
+    /* .data : Initialized global and static variables */
+    .data :
+    {
+        _sdata = .;
+        
+        *(.data)
+        
+        _edata = .;
+        
+    } > RAM AT > FLASH
+    _sidata = LOADADDR(.data); 
+    
+    
+    
+    /* .bss : Uninitialized global and static variables */
+    .bss :
+    {
+        ....
+    }
+    
+    /* .heap : Dynamic memory (malloc()) */
+    .heap :
+    {
+        ...
+    }
+    
+    /* .stack : Function calls and local variables */
+    .stack :
+    {
+        ...
+    }
+}
+```
 
 ## Linker Symbols: The Bridge to Startup Code
 
@@ -1164,7 +1225,7 @@ The linker script specifies `.text > FLASH`, `.data > RAM AT > FLASH`, and `.bss
 2. Where `.data` starts in RAM?
 3. Where `.data` ends in RAM?
 
-Linker symbols helps with these information. Scroll further down for Linker symbols. 
+Linker symbols helps with these information.
 
 ### Defining Symbols in the Linker Script
 
@@ -1217,16 +1278,14 @@ Initial copy : FLASH
     *(.data)
 } > RAM AT > FLASH
 ```
+The line `*(.data)` means take all .data sections from all object files and place them here.
 Here AT is the linker script keyword, meaning Load address at. 
-
-Now, the next line `*(.data)` means take all .data sections from all object files and place them here.
-
 
 ---
 
 ## How Startup Code Uses These Symbols
 
-In C startup code (`startup.c`), the Reset Handler accesses these linker-generated symbols using the `extern` keyword:
+In C startup code like for example `startup.c`, the Reset Handler accesses these linker-generated symbols using the `extern` keyword:
 
 ```c
 extern unsigned int _sidata;
@@ -1257,7 +1316,7 @@ void Reset_Handler(void)
 ## Visualizing the Complete Execution Flow
 
 ```text
-Power ON ⚡
+Power ON 
    │
    ▼
 FLASH (0x08000000)
@@ -1294,7 +1353,7 @@ The linker script **does not copy anything by itself**.
 
 The linker script only states:
 
-> *"The initial data starts here in Flash, and the runtime data belongs there in RAM."*
+*"The initial data starts here in Flash, and the runtime data belongs there in RAM."*
 
 The actual memory transfer (`FLASH`  ->  `RAM`) is performed at runtime by the **Reset Handler code**.
 
@@ -1339,13 +1398,20 @@ For .data the startup operation is to copy the data from Flash to RAM where as t
 
 ## How does the Reset Handler know where .data starts, where it ends, and where to copy it?
 
-We just wrote the below script, but the Startup code needs addresses like source address, destionation address and length. The linker provides these information using linker symbols.
+We just wrote the below script, but the Startup code needs addresses like source address, destionation address and length. The linker provides these information using linker symbols. Detailed explanation on `_sdata`, `_edata`, and `_sidata`futher down.
 
 ```ld
 .data
 {
+    _sdata = .;
+    
     *(.data)
+    
+    _edata = .;
+    
 } > RAM AT > FLASH
+
+_sidata = LOADADDR(.data); // _sidata provides the start address of .data in RAM
 ```
 
 ### Linker script symbols
@@ -1689,3 +1755,141 @@ _sbss → _ebss = 0
                  Application runs
                  
 ```
+
+### Other Sections in Linker script SECTIONS BLOCK:
+
+#### .sdata (Small Data)
+
+Stores small  initialized global/static variables.
+
+Example:
+```c
+int counter = 10;
+char flag = 1;
+```
+
+On some processors, keeping small variables together allows them to be accessed faster using special instructions. Most STM32 GCC projects do not use .sdata. They simply put global initialized variables in .data.
+
+```text
+.data
+---------------
+Large variables
+Normal variables
+
+.sdata
+---------------
+Small variables
+Frequently accessed variables
+```
+
+The speed improvement does not come because RAM is faster, because both are usually in RAM.
+The improvement comes from the CPU instruction used to access them. CPU can access it using a more efficient addressing method.
+
+
+#### .sbss (Small BSS)
+
+Stores small uninitialized global/static variables.
+
+Example
+```c
+int counter;
+char flag;
+```
+Instead of `.bss`, some architectures split it into `.bss`, and `.sbss`. Again, the goal is faster access. However, in STM32407VG its not usually used.
+
+Notice that .sdata and .sbss are not "better" versions of .data and .bss. They are simply specialized sections that some architectures and toolchains use to optimize access to small variables.
+
+**Who decides these Sections (.sdata & .sbss):**
+
+If compiler creates .data, .bss, .rodata based on C rules, they why do .sdata and .sbss is used only in some archiectures and decided by C language rules?
+
+`.sbss`, `.sdata`sections are not decided by compiler based on C language rules.  The Compiler for a particular architecture may decide.
+
+```text
+C language rules
+        +
+Compiler options
+        +
+Target architecture
+        +
+ABI (Application Binary Interface)
+```
+
+
+#### .heap 
+
+Reserves RAM for dynamic memory allocation.
+Functions like the below use memory from the heap.
+```c
+malloc()
+calloc()
+realloc()
+free()
+```
+
+```text
+RAM
+
+ ----------------
+| .data          |
+----------------
+| .bss           |
+ ----------------
+|                |
+| Heap           |
+| grows upward ↑ |
+|                |
+ ----------------
+```
+#### ..stack
+
+Stores temporary information while functions execute. 
+
+Whenever we call a function:
+```c
+void add(void)
+{
+    int x = 5;
+}
+```
+}
+
+The stack stores things like:
+-   local variables
+-   return address
+-   saved registers
+-   function parameters (sometimes)
+
+```text
+RAM
+
+ ----------------
+| Stack          |
+| grows downward |
+|        ↓       |
+ ----------------
+```
+When the function returns, that stack space is automatically released.
+
+**Why do Stack and Heap grow in opposite directions?**
+
+```text
+High Address
+
++----------------+
+| Stack          |
+|      ↓         |
+|                |
+|                |
+|                |
+|                |
+|      ↑         |
+| Heap           |
++----------------+
+
+Low Address
+```
+
+This allows both to grow and share the available RAM efficiently.
+
+
