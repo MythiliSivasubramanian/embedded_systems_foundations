@@ -75,6 +75,6 @@ C Basics
 Arrays  
 Searching  
 Sorting (Bubble Sort)  
-Starting Embedded Foundations
-Variables storage and memory organization
+Starting Embedded Foundations 
+Variables storage and memory organisation
 ---
