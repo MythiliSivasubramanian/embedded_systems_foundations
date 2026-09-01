@@ -253,3 +253,36 @@ The reset vector contains the address of Reset_Handler. Why does the second entr
            └──────────────────────┘
 ```
 ***The vector table does not contain Reset_Handler as text. It contains a 32-bit address/value associated with Reset_Handler.*** 
+
+### What Does the Hardware Do at RESET?
+Now connect this with our [Core_Register_knowledge](/stm32-learning/docs/02_Cortex-M4 Core Registers/01_Cortex_M4_Core_Registers.md). When reset occurs, the Cortex-M4's reset mechanism obtains the initial stack pointer and reset vector from the vector table. Conceptually,
+```text
+                       RESET
+                         │
+                         v
+                Cortex-M4 hardware
+                         │
+                         v
+                  Vector Table
+                         │
+              ┌──────────┴──────────┐
+              │                     │
+              v                     v
+       [0x08000000]           [0x08000004]
+       Initial MSP            Reset vector
+              │                     │
+              v                     v
+           MSP <- value           PC <- value
+```
+So if
+```text
+[0x08000000] = 0x20020000
+[0x08000004] = 0x08000101
+
+then conceptually:
+
+MSP = 0x20020000
+PC  = 0x08000101
+```
+before Reset_Handler begins executing. **The startup assembly does not need an instruction such as LDR SP, =0x20020000 to initialize the initial MSP. The reset mechanism obtains the initial MSP from the vector table (Hardfware - Silicon logic)**
+
