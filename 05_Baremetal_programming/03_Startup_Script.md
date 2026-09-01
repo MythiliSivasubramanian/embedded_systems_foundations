@@ -286,3 +286,50 @@ PC  = 0x08000101
 ```
 before Reset_Handler begins executing. **The startup assembly does not need an instruction such as LDR SP, =0x20020000 to initialize the initial MSP. The reset mechanism obtains the initial MSP from the vector table (Hardfware - Silicon logic)**
 
+### Why Is the Initial MSP at Address 0x08000000?
+Because the Cortex-M architecture defines the reset vector-table mechanism. The processor needs to know where to begin finding its initial execution information. In the normal STM32F407 configuration, the vector table is located at the beginning of the Flash image `0x08000000`. So the first word is `0x08000000` -> initial MSP and the second word is `0x08000004` -> reset vector. The exact vector-table location can be changed later through the Cortex-M vector-table mechanism, but at reset we care about the reset mapping/configuration. We'll discuss VTOR later.
+
+
+Noticed that the address of Reset_Handler is odd `0x08000101`istead of `0x08000100`. The short version is that Cortex-M4 executes Thumb instructions, and the reset vector has its least-significant bit set to indicate the required Thumb state. **`0x08000101`doesn't mean the instruction is physically located at an odd byte address.** The actual code address is aligned appropriately, while bit 0 carries state information. This connects directly to what we learned earlier about `EPSR.T`. We will deep dive into this later. 
+
+### What else does Vector Table contain?
+The first two entries are just the beginning. Conceptually,
+```text
+Vector Table
+│
+├── +0x00  -> Initial MSP
+├── +0x04  -> Reset_Handler
+├── +0x08  -> NMI_Handler
+├── +0x0C  -> HardFault_Handler
+├── +0x10  -> MemManage_Handler
+├── +0x14  -> BusFault_Handler
+├── +0x18  -> UsageFault_Handler
+│
+├── etc
+│
+└── External IRQ handlers
+```
+The table contains vectors for **Cortex-M system exceptions** such as,
+```text
+-   NMI
+-   HardFault
+-   MemManage
+-   BusFault
+-   UsageFault
+-   SVCall
+-   PendSV
+-   SysTick
+```
+and then **External interrupts** such as STM32 peripherals,
+```text
+TIM2
+TIM3
+USART1
+SPI1
+I2C1
+DMA
+ADC
+etx
+```
+The exact STM32F407 interrupt list comes from the STM32F407 interrupt/vector definitions, not from the generic Cortex-M4 architecture.
+
