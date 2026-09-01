@@ -333,3 +333,28 @@ etx
 ```
 The exact STM32F407 interrupt list comes from the STM32F407 interrupt/vector definitions, not from the generic Cortex-M4 architecture.
 
+### Why Does the Timer Interrupt Need the Vector Table?
+Suppose `TIM2 interrupt occurs`, the processor needs to know which address should it execute? and the vector table provides that association.
+```text
+TIM2 interrupt
+      │
+      v
+Vector table
+      │
+      v
+TIM2_IRQHandler address
+      │
+      v
+TIM2_IRQHandler()
+```
+So the vector table is essentially the connection between an exception/interrupt number and its handler address.
+
+| Hardware                            | Startup software          |
+| ----------------------------------- | ------------------------- |
+| Handles reset entry                 | Executes `Reset_Handler`  |
+| Fetches initial MSP                 | Initializes `.data`       |
+| Fetches reset vector                | Clears `.bss`             |
+| Establishes initial execution state | May call `SystemInit()`   |
+| Knows vector mechanism              | Eventually calls `main()` |
+
+
