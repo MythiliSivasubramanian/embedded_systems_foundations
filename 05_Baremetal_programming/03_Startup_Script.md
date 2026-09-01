@@ -47,8 +47,8 @@ The Cortex-M4 reset mechanism obtains two critical pieces of information from th
 ```text
 Vector Table
 
-+0x00 → Initial MSP value
-+0x04 → Reset_Handler address
++0x00  -> Initial MSP value
++0x04  -> Reset_Handler address
 ```
 
 So conceptually:
@@ -207,4 +207,49 @@ For STM32 projects, things such as early system/clock initialization may be perf
 **The Cortex-M4 architecture defines the reset behavior and exception/vector mechanism, but the startup file is largely implementation/toolchain/vendor-specific software that builds the environment needed by the C application.**
 
 ## The Vector Table
-In the above lines, we came accross this work Vector Table many time, so what exactly is a vector table? What exactly is inside the Vector Table? **The vector table is a table of 32-bit values stored in memory.** It is therefore essentially a collection of addresses and the initial stack pointer value. For STM32F407, the vector table is normally located at the beginning of the Flash region `0x08000000` assuming the normal memory configuration where the vector table is mapped there.
+In the above lines, we came accross this word Vector Table many times, so what exactly is a vector table? What exactly is inside the Vector Table? **The vector table is a table of 32-bit vector values stored in memory. The first entry contains the initial MSP value, while subsequent entries contain the addresses of exception and interrupt handlers.**
+
+For STM32F407, the vector table is normally located at the beginning of the Flash region `0x08000000` assuming the normal memory configuration where the vector table is mapped there.
+
+### The First Two Entries in Vector Table :
+The vector table starts something like this:
+```text
+Address        Contents
+────────────────────────────────────
+0x08000000     Initial MSP value
+0x08000004     Reset_Handler address
+0x08000008     NMI_Handler address
+0x0800000C     HardFault_Handler address
+etc
+```
+```text
+Offset 0x00  -> Initial MSP
+Offset 0x04  -> Reset vector
+Offset 0x08  -> NMI
+Offset 0x0C  -> HardFault
+etc
+```
+The reset vector contains the address of Reset_Handler. Why does the second entry appear at +4? Because every entry is 32 bits, ie 4 bytes. Therefore, `0x08000000 + 4` = `0x08000004`. Imagine our STM32F407 program has, Initial stack address = `0x20020000`, Reset_Handler address = `0x08000101` Then memory might conceptually look like,
+```text
+             VECTOR TABLE
+
+0x08000000 ┌──────────────────────┐
+           │ 0x20020000           │
+           │ Initial MSP value    │
+           └──────────────────────┘
+
+0x08000004 ┌──────────────────────┐
+           │ 0x08000101           │
+           │ Reset_Handler address│
+           └──────────────────────┘
+
+0x08000008 ┌──────────────────────┐
+           │ NMI_Handler address  │
+           └──────────────────────┘
+
+0x0800000C ┌──────────────────────┐
+           │ HardFault_Handler    │
+           │ address              │
+           └──────────────────────┘
+```
+***The vector table does not contain Reset_Handler as text. It contains a 32-bit address/value associated with Reset_Handler.*** 
