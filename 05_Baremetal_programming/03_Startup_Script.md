@@ -357,4 +357,114 @@ So the vector table is essentially the connection between an exception/interrupt
 | Establishes initial execution state | May call `SystemInit()`   |
 | Knows vector mechanism              | Eventually calls `main()` |
 
+## Architecture to Actual code :
+I am very much excited to build myself a minimal but real Cortex-M4 startup system for my STM32F407VG. 
+Conceptually, 
+```text
+                    RESET
+                      │
+                      v
+                VECTOR TABLE
+                      │
+          ┌───────────┴───────────┐
+          v                       v
+    Initial MSP              Reset_Handler
+                                  │
+                                  v
+                         ┌─────────────────┐
+                         │ Reset_Handler   │
+                         └────────┬────────┘
+                                  │
+                                  v
+                           SystemInit()
+                                  │
+                                  v
+                       Copy .data Flash→RAM
+                                  │
+                                  v
+                         Clear .bss → 0
+                                  │
+                                  v
+                                main()
+                                
+Lets construct every box from scratch
+```
+### Understanding Requirements:
+The first and foremost question is what our startup file must contain. So, what are the minimum information / Code required, so that the Cortex M4 can start executing our C Program/ application after Reset?
 
+**Step 1: From Hardware`s Point of view :**
+We already know what happens during reset,
+```text
+                 RESET
+                   │
+                   v
+        -─────────────────────-
+        │ Cortex-M4 hardware  │
+        │ reads vector table  │
+        -──────────┬──────────-
+                   │
+          ┌────────┴────────┐
+          v                 v
+       MSP value         Reset vector
+          │                 │
+          v                 v
+      Initial SP       Initial PC
+                            │
+                            v
+                     Reset_Handler
+```
+So the processor needs two things immediately,
+1.    Where should the stack start?
+The first vector-table entry must provide `Initial MSP`. For our STM32F407, from Reference manual, the starting address of SRAM mapped at address `0x2000 0000` and from Datasheet we know that SRAM is 192-Kbyte RAM in an LQFP100 package, which is our STM32F407.
+
+Lets calculate the last addreess (exclusive last address and last usuable byte) for a memory block starting at the base address 0x20000000 with a size of 192 KB, 
+1. **Convert the size to bytes :**
+192 KB = 192 * 1024 = 196,608 bytes.
+2. **[Convert the Size to hexadecimal:](#Convert-the-Size-to-hexadecimal):**
+196,608 in hex = 0x30000
+3. **Calculate the exclusive end address :**
+0x20000000 + 0x30000 = 0x20030000
+4. **Calculate the last usable byte (inclusive) :**
+0x20030000 - 1 = 0x2002FFFF
+
+So, `0x2002FFFF` is the inclusive last address, which is the final valid byte within the block.
+`0x20030000` is the exclusive end address, which is typically used in linker scripts to define the upper bound of the segment. 
+
+##### Convert the Size to hexadecimal:
+Decimal 196,608 to Hex 0x30000
+Method 1: Successive Division:
+Divide the decimal number by 16 repeatedly, keeping track of the remainders. Read the remainders from the bottom to the top to get the final hex value.
+1.    196,608 ÷ 16 = 12,288 with a remainder of 0 (Least Significant Digit)
+2.    12,288 ÷ 16 = 768 with a remainder of 0
+3.     768 ÷ 16 = 48 with a remainder of 0
+4.     48 ÷ 16 = 3 with a remainder of 0
+5.     3 ÷ 16 = 0 with a remainder of 3 (Most Significant Digit)
+
+Reading bottom-to-top yields 30000. Adding the 0x radix prefix results in 0x30000.
+
+Method 2: Positional Powers of 16 
+To find the starting power of 16, look for the largest power of 16 that can fit inside your target number 
+196,608 without exceeding it
+1.    Its 16⁴. 16⁴ = 65,536.
+2.    Divide the total byte size by this value 196,608 / 65,536 = 3.
+3.    Because 65,536 fits into 196,608 exactly 3 times with a remainder of 0, the 16⁴ column is assigned a value of 3, and all lower column positions (16³, 16², 16¹, 16⁰) default to 0. Result is 0x30000.
+
+```text
+RAM:
+0x20000000
+     │
+     │  192KB
+     │
+     │
+0x2001FFFF    last final valid RAM byte
+0x20020000   <- _estack
+```
+So, MSP = `0x20020000`
+
+2.    Where should execution begin?
+The second vector-table entry must provide the `Reset vector`which  contains the address of `Reset_Handler`. 
+So Conceptually,
+```text
+0x08000000 -> initial MSP located at
+0x08000004 -> Reset vector located at
+```
